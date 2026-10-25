@@ -412,13 +412,14 @@ jobs:
           INIT_FILE="drivers/kernelsu/core/init.c"
           SUCOMPAT_FILE="drivers/kernelsu/feature/sucompat.c"
           SYSCALL_HOOK_FILE="drivers/kernelsu/hook/syscall_hook_manager.c"
-          for FILE in "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE"; do
+          PATCH_MEMORY_FILE="drivers/kernelsu/hook/arm64/patch_memory.c"
+          for FILE in "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE" "$PATCH_MEMORY_FILE"; do
             if [[ ! -f "$FILE" ]]; then
               echo "::error::MidoriSU source not found: $FILE"
               exit 1
             fi
           done
-          python3 - "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE" <<'PY'
+          python3 - "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE" "$PATCH_MEMORY_FILE" <<'PY'
           import pathlib, sys
 
           init_path = pathlib.Path(sys.argv[1])
@@ -450,17 +451,30 @@ jobs:
           old_registration = "register_trace_prio_sys_enter(ksu_sys_enter_handler, NULL, INT_MIN)"
           compatible_registration = "register_trace_sys_enter(ksu_sys_enter_handler, NULL)"
           import re
-          if re.search(r"(?m)^\\s*ret\\s*=\\s*register_trace_sys_enter\\(ksu_sys_enter_handler,\\s*NULL\\)", syscall_hook_text):
+          if re.search(r"(?m)^\s*ret\s*=\s*register_trace_sys_enter\(ksu_sys_enter_handler,\s*NULL\)", syscall_hook_text):
               print("[+] sys_enter registration already uses the older-kernel-compatible API.")
           elif old_registration in syscall_hook_text:
               syscall_hook_path.write_text(syscall_hook_text.replace(old_registration, compatible_registration, 1))
               print("[+] Replaced priority sys_enter registration with the compatible registration API.")
           else:
               raise SystemExit("::error::Expected sys_enter registration not found; refusing to modify unexpected source.")
+
+          patch_memory_path = pathlib.Path(sys.argv[4])
+          patch_memory_text = patch_memory_path.read_text()
+          old_copy = "copy_to_kernel_nofault(map, src, len)"
+          compatible_copy = "probe_kernel_write(map, src, len)"
+          if compatible_copy in patch_memory_text:
+              print("[+] Kernel memory write already uses probe_kernel_write for older kernels.")
+          elif old_copy in patch_memory_text:
+              patch_memory_path.write_text(patch_memory_text.replace(old_copy, compatible_copy, 1))
+              print("[+] Replaced copy_to_kernel_nofault with probe_kernel_write for Linux 4.19 compatibility.")
+          else:
+              raise SystemExit("::error::Expected kernel nofault copy call not found; refusing to modify unexpected source.")
           PY
           grep -n -B1 -A2 'MODULE_IMPORT_NS' "$INIT_FILE"
           grep -n -B1 -A2 'pgtable.h' "$SUCOMPAT_FILE"
           grep -n -B2 -A2 'register_trace_.*sys_enter' "$SYSCALL_HOOK_FILE"
+          grep -n -B2 -A2 'probe_kernel_write\|copy_to_kernel_nofault' "$PATCH_MEMORY_FILE"
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
