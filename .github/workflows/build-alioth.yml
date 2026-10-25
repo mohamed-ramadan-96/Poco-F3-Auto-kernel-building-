@@ -128,8 +128,8 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  KERNELSU_SOURCE: ${{ inputs.ksu == 'bakasu' && 'https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh' || inputs.ksu == 'midorisu' && 'https://github.com/midori01/KernelSU.git' || '' }}
-  KERNELSU_BRANCH: ${{ inputs.ksu == 'bakasu' && inputs.bakasu_branch || inputs.ksu == 'midorisu' && 'kow' || '' }}
+  KERNELSU_SOURCE: ${{ inputs.ksu == 'bakasu' && 'https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh' || inputs.ksu == 'midorisu' && 'https://raw.githubusercontent.com/midori01/KernelSU/main/kernel/setup.sh' || '' }}
+  KERNELSU_BRANCH: ${{ inputs.ksu == 'bakasu' && inputs.bakasu_branch || inputs.ksu == 'midorisu' && '' || '' }}
 
   KERNELSU_AUTO_GET: ${{ (inputs.ksu == 'bakasu' || inputs.ksu == 'midorisu') && 'false' || 'true' }}
   KERNELSU_AUTO_FORK: ${{ inputs.ksu }}
@@ -158,7 +158,7 @@ env:
   PACK_METHOD: "AnyKernel3"
   PACK_KMODULES: "false"
 
-  KERNELSU_METHOD: ${{ inputs.ksu == 'midorisu' && 'manual' || 'shell' }}
+  KERNELSU_METHOD: "shell"
 
   PATCHES_SOURCE: "JackA1ltman/NonGKI_Kernel_Patches"
   PATCHES_BRANCH: "mi_kernel"
