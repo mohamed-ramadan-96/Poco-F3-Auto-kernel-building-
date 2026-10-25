@@ -411,13 +411,14 @@ jobs:
           cd "$GITHUB_WORKSPACE/device_kernel"
           INIT_FILE="drivers/kernelsu/core/init.c"
           SUCOMPAT_FILE="drivers/kernelsu/feature/sucompat.c"
-          for FILE in "$INIT_FILE" "$SUCOMPAT_FILE"; do
+          SYSCALL_HOOK_FILE="drivers/kernelsu/hook/syscall_hook_manager.c"
+          for FILE in "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE"; do
             if [[ ! -f "$FILE" ]]; then
               echo "::error::MidoriSU source not found: $FILE"
               exit 1
             fi
           done
-          python3 - "$INIT_FILE" "$SUCOMPAT_FILE" <<'PY'
+          python3 - "$INIT_FILE" "$SUCOMPAT_FILE" "$SYSCALL_HOOK_FILE" <<'PY'
           import pathlib, sys
 
           init_path = pathlib.Path(sys.argv[1])
@@ -443,9 +444,22 @@ jobs:
               print("[+] Guarded linux/pgtable.h include for kernels that do not provide it.")
           else:
               raise SystemExit("::error::Expected linux/pgtable.h include not found; refusing to modify unexpected source.")
+
+          syscall_hook_path = pathlib.Path(sys.argv[3])
+          syscall_hook_text = syscall_hook_path.read_text()
+          old_registration = "register_trace_prio_sys_enter(ksu_sys_enter_handler, NULL, INT_MIN)"
+          compatible_registration = "register_trace_sys_enter(ksu_sys_enter_handler, NULL)"
+          if compatible_registration in syscall_hook_text:
+              print("[+] sys_enter registration already uses the older-kernel-compatible API.")
+          elif old_registration in syscall_hook_text:
+              syscall_hook_path.write_text(syscall_hook_text.replace(old_registration, compatible_registration, 1))
+              print("[+] Replaced priority sys_enter registration with the compatible registration API.")
+          else:
+              raise SystemExit("::error::Expected sys_enter registration not found; refusing to modify unexpected source.")
           PY
           grep -n -B1 -A2 'MODULE_IMPORT_NS' "$INIT_FILE"
           grep -n -B1 -A2 'pgtable.h' "$SUCOMPAT_FILE"
+          grep -n -B2 -A2 'register_trace_.*sys_enter' "$SYSCALL_HOOK_FILE"
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
