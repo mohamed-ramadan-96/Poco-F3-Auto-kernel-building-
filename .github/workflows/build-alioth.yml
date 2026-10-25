@@ -403,32 +403,49 @@ jobs:
           fi
           echo "[+] Patch audit passed; no .rej/.orig files remain."
 
-      - name: 🩹 Fix MidoriSU MODULE_IMPORT_NS on older kernels
+      - name: 🩹 Fix MidoriSU compatibility on older kernels
         if: ${{ inputs.ksu == 'midorisu' }}
         shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/device_kernel"
-          FILE="drivers/kernelsu/core/init.c"
-          if [[ ! -f "$FILE" ]]; then
-            echo "::error::MidoriSU init source not found: $FILE"
-            exit 1
-          fi
-          python3 - "$FILE" <<'PY'
+          INIT_FILE="drivers/kernelsu/core/init.c"
+          SUCOMPAT_FILE="drivers/kernelsu/feature/sucompat.c"
+          for FILE in "$INIT_FILE" "$SUCOMPAT_FILE"; do
+            if [[ ! -f "$FILE" ]]; then
+              echo "::error::MidoriSU source not found: $FILE"
+              exit 1
+            fi
+          done
+          python3 - "$INIT_FILE" "$SUCOMPAT_FILE" <<'PY'
           import pathlib, sys
-          p = pathlib.Path(sys.argv[1])
-          text = p.read_text()
-          old = "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);"
-          new = "#ifdef MODULE_IMPORT_NS\nMODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);\n#endif"
-          if new in text:
+
+          init_path = pathlib.Path(sys.argv[1])
+          init_text = init_path.read_text()
+          old_ns = "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);"
+          new_ns = "#ifdef MODULE_IMPORT_NS\\nMODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);\\n#endif"
+          if new_ns in init_text:
               print("[+] MODULE_IMPORT_NS compatibility guard already present.")
-          elif old in text:
-              p.write_text(text.replace(old, new, 1))
-              print("[+] Guarded MODULE_IMPORT_NS for kernels that do not define the macro.")
+          elif old_ns in init_text:
+              init_path.write_text(init_text.replace(old_ns, new_ns, 1))
+              print("[+] Guarded MODULE_IMPORT_NS for older kernels.")
           else:
               raise SystemExit("::error::Expected MODULE_IMPORT_NS line not found; refusing to modify unexpected source.")
+
+          sucompat_path = pathlib.Path(sys.argv[2])
+          sucompat_text = sucompat_path.read_text()
+          pgtable_include = "#include <linux/pgtable.h>"
+          guarded_pgtable_include = "#if __has_include(<linux/pgtable.h>)\\n#include <linux/pgtable.h>\\n#endif"
+          if guarded_pgtable_include in sucompat_text:
+              print("[+] linux/pgtable.h compatibility guard already present.")
+          elif pgtable_include in sucompat_text:
+              sucompat_path.write_text(sucompat_text.replace(pgtable_include, guarded_pgtable_include, 1))
+              print("[+] Guarded linux/pgtable.h include for kernels that do not provide it.")
+          else:
+              raise SystemExit("::error::Expected linux/pgtable.h include not found; refusing to modify unexpected source.")
           PY
-          grep -n -B1 -A2 'MODULE_IMPORT_NS' "$FILE"
+          grep -n -B1 -A2 'MODULE_IMPORT_NS' "$INIT_FILE"
+          grep -n -B1 -A2 'pgtable.h' "$SUCOMPAT_FILE"
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
