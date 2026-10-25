@@ -423,7 +423,7 @@ jobs:
           init_path = pathlib.Path(sys.argv[1])
           init_text = init_path.read_text()
           old_ns = "MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);"
-          new_ns = "#ifdef MODULE_IMPORT_NS\\nMODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);\\n#endif"
+          new_ns = "#ifdef MODULE_IMPORT_NS\nMODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);\n#endif"
           if new_ns in init_text:
               print("[+] MODULE_IMPORT_NS compatibility guard already present.")
           elif old_ns in init_text:
@@ -435,7 +435,7 @@ jobs:
           sucompat_path = pathlib.Path(sys.argv[2])
           sucompat_text = sucompat_path.read_text()
           pgtable_include = "#include <linux/pgtable.h>"
-          guarded_pgtable_include = "#if __has_include(<linux/pgtable.h>)\\n#include <linux/pgtable.h>\\n#endif"
+          guarded_pgtable_include = "#if __has_include(<linux/pgtable.h>)\n#include <linux/pgtable.h>\n#endif"
           if guarded_pgtable_include in sucompat_text:
               print("[+] linux/pgtable.h compatibility guard already present.")
           elif pgtable_include in sucompat_text:
