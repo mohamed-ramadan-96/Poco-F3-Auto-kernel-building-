@@ -449,7 +449,8 @@ jobs:
           syscall_hook_text = syscall_hook_path.read_text()
           old_registration = "register_trace_prio_sys_enter(ksu_sys_enter_handler, NULL, INT_MIN)"
           compatible_registration = "register_trace_sys_enter(ksu_sys_enter_handler, NULL)"
-          if compatible_registration in syscall_hook_text:
+          import re
+          if re.search(r"(?m)^\\s*ret\\s*=\\s*register_trace_sys_enter\\(ksu_sys_enter_handler,\\s*NULL\\)", syscall_hook_text):
               print("[+] sys_enter registration already uses the older-kernel-compatible API.")
           elif old_registration in syscall_hook_text:
               syscall_hook_path.write_text(syscall_hook_text.replace(old_registration, compatible_registration, 1))
