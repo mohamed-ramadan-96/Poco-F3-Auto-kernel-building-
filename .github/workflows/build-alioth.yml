@@ -129,7 +129,7 @@ env:
   DEFCONFIG_FROM_BOOT: false
 
   KERNELSU_SOURCE: ${{ inputs.ksu == 'bakasu' && 'https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh' || inputs.ksu == 'midorisu' && 'https://raw.githubusercontent.com/midori01/KernelSU/main/kernel/setup.sh' || '' }}
-  KERNELSU_BRANCH: ${{ inputs.ksu == 'bakasu' && inputs.bakasu_branch || inputs.ksu == 'midorisu' && '' || '' }}
+  KERNELSU_BRANCH: ${{ inputs.ksu == 'bakasu' && inputs.bakasu_branch || inputs.ksu == 'midorisu' && 'main' || '' }}
 
   KERNELSU_AUTO_GET: ${{ (inputs.ksu == 'bakasu' || inputs.ksu == 'midorisu') && 'false' || 'true' }}
   KERNELSU_AUTO_FORK: ${{ inputs.ksu }}
