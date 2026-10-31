@@ -36,6 +36,21 @@ runs:
           cd "$GITHUB_WORKSPACE/device_kernel/"
           set -o pipefail
 
+          # Capture the entire build step, including defconfig and olddefconfig failures.
+          : > "$GITHUB_WORKSPACE/device_kernel/error.log"
+          exec > >(tee -a "$GITHUB_WORKSPACE/device_kernel/error.log") 2>&1
+
+          # Ubuntu 26.04 uses its native LLD to avoid legacy libxml2.so.2 dependencies.
+          LD_ARGS=()
+          if [[ -n "${BUILD_LD:-}" ]]; then
+            if [[ ! -x "$BUILD_LD" ]]; then
+              echo "::error::Configured linker does not exist or is not executable: $BUILD_LD"
+              exit 1
+            fi
+            LD_ARGS=("LD=$BUILD_LD")
+            echo "[+] Using validated system linker: $BUILD_LD"
+          fi
+
           # Function
           BUILD_PROCESS(){
           if [ -n "$1" ]; then
@@ -53,12 +68,12 @@ runs:
             echo "========================"
             echo "=Read Defconfig (Clang)="
             echo "========================"
-            make CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.DEFCONFIG_NAME }}
+            make "${LD_ARGS[@]}" CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.DEFCONFIG_NAME }}
           else
             echo "================"
             echo "=Read Defconfig="
             echo "================"
-            make O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.DEFCONFIG_NAME }}
+            make "${LD_ARGS[@]}" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.DEFCONFIG_NAME }}
           fi
 
           if [[ "${{ env.BUILD_OTHER_CONFIG }}"  == "true" ]]; then
@@ -73,12 +88,12 @@ runs:
                 echo "==============================="
                 echo "=Execuate olddefconfig (Clang)="
                 echo "==============================="
-                make CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} olddefconfig
+                make "${LD_ARGS[@]}" CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} olddefconfig
             else
                 echo "======================="
                 echo "=Execuate olddefconfig="
                 echo "======================="
-                make O=out ARCH="${{ env.KERNEL_ARCH }}" olddefconfig
+                make "${LD_ARGS[@]}" O=out ARCH="${{ env.KERNEL_ARCH }}" olddefconfig
             fi
           fi
 
@@ -91,12 +106,12 @@ runs:
                 echo "==============================="
                 echo "=Execuate olddefconfig (Clang)="
                 echo "==============================="
-                make CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} olddefconfig
+                make "${LD_ARGS[@]}" CC="ccache clang" O=out ARCH="${{ env.KERNEL_ARCH }}" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} olddefconfig
             else
                 echo "======================="
                 echo "=Execuate olddefconfig="
                 echo "======================="
-                make O=out ARCH="${{ env.KERNEL_ARCH }}" olddefconfig
+                make "${LD_ARGS[@]}" O=out ARCH="${{ env.KERNEL_ARCH }}" olddefconfig
             fi
           fi
 
@@ -131,22 +146,22 @@ runs:
             echo "======================"
 
             if [[ "${{ env.BASEBAND_GUARD_ENABLE }}" == "true" ]]; then
-                make -j$(nproc --all) CC="ccache clang" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} O=out ARCH="${{ env.KERNEL_ARCH }}" security/selinux/
+                make "${LD_ARGS[@]}" -j$(nproc --all) CC="ccache clang" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} O=out ARCH="${{ env.KERNEL_ARCH }}" security/selinux/
                 echo "[+] Pre-built SELinux done."
             fi
 
-            make -j$(nproc --all) CC="ccache clang" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} O=out ARCH="${{ env.KERNEL_ARCH }}" 2>&1|tee error.log
+            make "${LD_ARGS[@]}" -j$(nproc --all) CC="ccache clang" ${{ env.CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} O=out ARCH="${{ env.KERNEL_ARCH }}"
           else
             echo "===================="
             echo "=Execuate GCC Build="
             echo "===================="
 
             if [[ "${{ env.BASEBAND_GUARD_ENABLE }}" == "true" ]]; then
-                make -j$(nproc --all) O=out ARCH="${{ env.KERNEL_ARCH }}" security/selinux/
+                make "${LD_ARGS[@]}" -j$(nproc --all) O=out ARCH="${{ env.KERNEL_ARCH }}" security/selinux/
                 echo "[+] Pre-built SELinux done."
             fi
 
-            make -j$(nproc --all) O=out ARCH="${{ env.KERNEL_ARCH }}" 2>&1|tee error.log
+            make "${LD_ARGS[@]}" -j$(nproc --all) O=out ARCH="${{ env.KERNEL_ARCH }}"
           fi
           }
 
