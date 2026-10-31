@@ -71,27 +71,32 @@ runs:
 
       - name: Get Packing Tools
         shell: bash
+        env:
+          PACK_METHOD_INPUT: ${{ env.PACK_METHOD }}
+          AK3_SOURCE_INPUT: ${{ env.AK3_SOURCE }}
+          AK3_BRANCH_INPUT: ${{ env.AK3_BRANCH }}
+          DEFCONFIG_FROM_BOOT_INPUT: ${{ env.DEFCONFIG_FROM_BOOT }}
         run: |
-          # Set ${{ env.PACK_METHOD }}
+          # Set packing method
 
-          if [[ "${{ env.PACK_METHOD }}" == "AnyKernel3" ]]; then
+          if [[ "$PACK_METHOD_INPUT" == "AnyKernel3" ]]; then
             cd $GITHUB_WORKSPACE/device_kernel
 
             if [[ -d "AnyKernel3" ]]; then
               echo "[+] Found AnyKernel3 in Kernel!"
 
-            elif [[ "${{ env.AK3_SOURCE }}" == *"osm0sis/AnyKernel3.git" ]]; then
-              git clone "${{ env.AK3_SOURCE }}" -b "${{ env.AK3_BRANCH }}" AnyKernel3
+            elif [[ "$AK3_SOURCE_INPUT" == *"osm0sis/AnyKernel3.git" ]]; then
+              git clone "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3
               cd AnyKernel3
               git checkout dca9dc370838d919d56c1f59ec78b27a14a72c68
               cd ../
               echo "[+] Get AnyKernel3 successfully!"
 
             else
-              git clone "${{ env.AK3_SOURCE }}" -b "${{ env.AK3_BRANCH }}" AnyKernel3 --depth=1
+              git clone "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3 --depth=1
 
             fi
-          elif [[ "${{ env.PACK_METHOD }}" == "MKBOOTIMG" ]] || [ "${{ env.DEFCONFIG_FROM_BOOT }}" == "true" ]; then
+          elif [[ "$PACK_METHOD_INPUT" == "MKBOOTIMG" ]] || [ "$DEFCONFIG_FROM_BOOT_INPUT" == "true" ]; then
             cd $GITHUB_WORKSPACE
             git clone https://android.googlesource.com/platform/system/tools/mkbootimg $GITHUB_WORKSPACE/mkboottools -b main-kernel-build-2024 --depth=1
             ${{ env.CURLX }} ${{ env.BOOT_SOURCE }} $GITHUB_WORKSPACE/boot_source_${{ env.DEVICE_NAME }}.img
@@ -112,7 +117,7 @@ runs:
           echo "AK3_SOURCE_SHA=$AK3_SHA" >> "$GITHUB_ENV"
           echo "[+] AnyKernel3 source SHA: $AK3_SHA"
 
-          echo "PACK_METHOD=${{ env.PACK_METHOD }}" >> $GITHUB_ENV
+          echo "PACK_METHOD=$PACK_METHOD_INPUT" >> "$GITHUB_ENV"
 
       - name: Get DEFCONFIG
         if: env.DEFCONFIG_SOURCE != '' || env.DEFCONFIG_FROM_BOOT == 'true'
