@@ -47,7 +47,7 @@ runs:
               echo "::error::Configured linker does not exist or is not executable: $BUILD_LD"
               exit 1
             fi
-            LD_ARGS=("LD=$BUILD_LD")
+            LD_ARGS=("LD=$BUILD_LD" "HOSTLD=$BUILD_LD")
             echo "[+] Using validated system linker: $BUILD_LD"
           fi
 
