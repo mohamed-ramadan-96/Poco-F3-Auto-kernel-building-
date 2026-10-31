@@ -56,19 +56,43 @@ runs:
           cd "$GITHUB_WORKSPACE/device_kernel/"
           SUSFS_VERSION="2.2.00"
 
-          PACK_FILES(){
-            temp_dir=$(mktemp -d)
-            find . -name "*.rej" -exec cp --parents {} "$temp_dir" \;
-            find . -name "*.rej" | sed 's/\.rej$//' | xargs -I {} test -f {} && find . -name "*.rej" | sed 's/\.rej$//' | xargs -I {} cp --parents {} "$temp_dir"
-            tar -czf "rej_files_1.5.5.tar.gz" -C "$temp_dir" .
-            rm -rf "$temp_dir"
-            echo "[+] Packed Successfully."
+          # Check SUSFS
+          if grep -q "CONFIG_KSU_SUSFS" "fs/namespace.c"; then
+            echo "[-] SUSFS is already patched, Skipped."
+            echo "SUSFS_SKIP=true" >> "$GITHUB_ENV"
 
-            find . -type f \( -name "*.rej" -o -name "*.orig" \) -delete
-            echo "[+] Removed all .rej and .orig files."
-            echo "[+] =================================== "
+          else
+            PATCH_FILE="susfs_patch_to_${KERNEL_VERSION}.patch"
+            if [[ ! -s "/tmp/Patches/Patch/$PATCH_FILE" ]]; then
+              echo "::error::Required SUSFS patch is missing: $PATCH_FILE"
+              exit 1
+            fi
+            cp "/tmp/Patches/Patch/$PATCH_FILE" ./
 
-          }
+            PATCH_LOG="susfs-patch.log"
+            set +e
+            patch --batch --forward -p1 < "$PATCH_FILE" 2>&1 | tee "$PATCH_LOG"
+            PATCH_STATUS=${PIPESTATUS[0]}
+            set -e
+
+            mapfile -t PATCH_RESIDUE < <(find . -type f \\( -name '*.rej' -o -name '*.orig' \\) -print)
+            if (( PATCH_STATUS != 0 || ${#PATCH_RESIDUE[@]} > 0 )); then
+              ARCHIVE="rej_files_susfs_${GITHUB_RUN_ID:-local}.tar.gz"
+              DIAGNOSTIC_FILES=("$PATCH_LOG")
+              if (( ${#PATCH_RESIDUE[@]} > 0 )); then
+                DIAGNOSTIC_FILES+=("${PATCH_RESIDUE[@]}")
+              fi
+              tar -czf "$ARCHIVE" -- "${DIAGNOSTIC_FILES[@]}"
+              echo "::error::SUSFS patch failed (exit code $PATCH_STATUS) or left patch residue."
+              if (( ${#PATCH_RESIDUE[@]} > 0 )); then
+                printf '[-] Patch residue: %s\\n' "${PATCH_RESIDUE[@]}"
+              fi
+              echo "[+] Diagnostics saved to $ARCHIVE and $PATCH_LOG."
+              exit 1
+            fi
+
+            echo "[+] SUSFS Patch completed successfully."
+          fi
 
           # Check SUSFS
           if grep -q "CONFIG_KSU_SUSFS" "fs/namespace.c"; then
