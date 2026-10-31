@@ -385,9 +385,12 @@ jobs:
 
           # Any leftover reject/original files indicate a patch that needs review.
           mapfile -t PATCH_ARTIFACTS < <(find . -type f \( -name '*.rej' -o -name '*.orig' \) -print)
-          if (( ${#PATCH_ARTIFACTS[@]} > 0 )); then
-            printf '::error::Patch residue detected: %s\n' "${PATCH_ARTIFACTS[@]}"
-            printf '%s\n' "${PATCH_ARTIFACTS[@]}"
+          if (( \${#PATCH_ARTIFACTS[@]} > 0 )); then
+            ARCHIVE="rej_files_audit_\${GITHUB_RUN_ID:-local}.tar.gz"
+            tar -czf "$ARCHIVE" -- "\${PATCH_ARTIFACTS[@]}"
+            echo "::error::Patch residue detected; refusing to compile with rejected or backup files."
+            printf '[-] Patch residue: %s\n' "\${PATCH_ARTIFACTS[@]}"
+            echo "[+] Patch diagnostics saved to $ARCHIVE."
             exit 1
           fi
 
