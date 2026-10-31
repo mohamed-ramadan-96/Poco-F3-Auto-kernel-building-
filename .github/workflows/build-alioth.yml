@@ -593,5 +593,6 @@ jobs:
             device_kernel/*.rej
             device_kernel/*.orig
             device_kernel/rej_files_*.tar.gz
+            device_kernel/susfs-patch.log
             device_kernel/compile_commands.json
           if-no-files-found: warn
