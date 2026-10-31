@@ -75,22 +75,28 @@ runs:
             PATCH_STATUS=${PIPESTATUS[0]}
             set -e
 
-            mapfile -t PATCH_RESIDUE < <(find . -type f \( -name '*.rej' -o -name '*.orig' \) -print)
-            if (( PATCH_STATUS != 0 || ${#PATCH_RESIDUE[@]} > 0 )); then
+            mapfile -t PATCH_REJECTS < <(find . -type f -name '*.rej' -print)
+            if (( PATCH_STATUS != 0 || ${#PATCH_REJECTS[@]} > 0 )); then
               ARCHIVE="rej_files_susfs_${GITHUB_RUN_ID:-local}.tar.gz"
               DIAGNOSTIC_FILES=("$PATCH_LOG")
-              if (( ${#PATCH_RESIDUE[@]} > 0 )); then
-                DIAGNOSTIC_FILES+=("${PATCH_RESIDUE[@]}")
+              mapfile -t PATCH_BACKUPS < <(find . -type f -name '*.orig' -print)
+              if (( ${#PATCH_REJECTS[@]} > 0 )); then
+                DIAGNOSTIC_FILES+=("${PATCH_REJECTS[@]}")
+              fi
+              if (( ${#PATCH_BACKUPS[@]} > 0 )); then
+                DIAGNOSTIC_FILES+=("${PATCH_BACKUPS[@]}")
               fi
               tar -czf "$ARCHIVE" -- "${DIAGNOSTIC_FILES[@]}"
-              echo "::error::SUSFS patch failed (exit code $PATCH_STATUS) or left patch residue."
-              if (( ${#PATCH_RESIDUE[@]} > 0 )); then
-                printf '[-] Patch residue: %s\n' "${PATCH_RESIDUE[@]}"
+              echo "::error::SUSFS patch failed (exit code $PATCH_STATUS) or produced rejected hunks."
+              if (( ${#PATCH_REJECTS[@]} > 0 )); then
+                printf '[-] Rejected patch: %s\\n' "${PATCH_REJECTS[@]}"
               fi
               echo "[+] Diagnostics saved to $ARCHIVE and $PATCH_LOG."
               exit 1
             fi
 
+            # GNU patch creates .orig backups by default; they are not patch failures.
+            find . -type f -name '*.orig' -delete
             echo "[+] SUSFS Patch completed successfully."
           fi
 
