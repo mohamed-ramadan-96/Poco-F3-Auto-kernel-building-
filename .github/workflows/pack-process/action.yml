@@ -7,6 +7,13 @@ runs:
       - name: Make AnyKernel3 Flasher
         if: env.PACK_METHOD == 'AnyKernel3'
         shell: bash
+        env:
+          AK3_SOURCE_INPUT: $AK3_SOURCE_INPUT
+          AK3_BRANCH_INPUT: $AK3_BRANCH_INPUT
+          AK3_SOURCE_SHA_INPUT: $AK3_SOURCE_SHA_INPUT
+          KERNEL_SOURCE_URL_INPUT: $KERNEL_SOURCE_URL_INPUT
+          KERNEL_SOURCE_BRANCH_INPUT: $KERNEL_SOURCE_BRANCH_INPUT
+          KERNEL_SOURCE_SHA_INPUT: $KERNEL_SOURCE_SHA_INPUT
         run: |
           TIME=$(date +"%Y%m%d%H%M%S")
 
@@ -15,7 +22,7 @@ runs:
 
           mkdir -p tmp
 
-          if [[ "${{ env.AK3_SOURCE }}" =~ "osm0sis" ]]; then
+          if [[ $AK3_SOURCE_INPUT =~ "osm0sis" ]]; then
             sed -i 's/ExampleKernel by osm0sis @ xda-developers/NonGKI Kernel Build by JackAltman @ GitHub/g' AnyKernel3/anykernel.sh
             sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
             sed -i 's!BLOCK=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!BLOCK=auto;!g' AnyKernel3/anykernel.sh
@@ -92,12 +99,12 @@ runs:
           cat > tmp/build-info.txt <<EOF
           device=${{ env.DEVICE_CODENAME }}
           kernel_version=${{ env.KERNEL_VERSION }}
-          kernel_source=${{ env.KERNEL_SOURCE_URL }}
-          kernel_branch=${{ env.KERNEL_SOURCE_BRANCH }}
-          kernel_commit=${{ env.KERNEL_SOURCE_SHA }}
-          anykernel3_source=${{ env.AK3_SOURCE }}
-          anykernel3_branch=${{ env.AK3_BRANCH }}
-          anykernel3_commit=${{ env.AK3_SOURCE_SHA }}
+          kernel_source=$KERNEL_SOURCE_URL_INPUT
+          kernel_branch=$KERNEL_SOURCE_BRANCH_INPUT
+          kernel_commit=$KERNEL_SOURCE_SHA_INPUT
+          anykernel3_source=$AK3_SOURCE_INPUT
+          anykernel3_branch=$AK3_BRANCH_INPUT
+          anykernel3_commit=$AK3_SOURCE_SHA_INPUT
           clang_source=${{ env.CLANG_SOURCE }}
           kernelsu_setup_source=${{ env.KERNELSU_SOURCE }}
           kernelsu_branch=${{ env.KERNELSU_BRANCH }}
