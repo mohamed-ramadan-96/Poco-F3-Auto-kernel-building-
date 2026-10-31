@@ -4742,7 +4742,7 @@ index 6ac5d1b..5b90005 100644
  		!strncmp(current->comm, "uprobestats", 11) ||
  		!strncmp(current->comm, "netd", 4))) {
  		strcpy(tmp.release, "5.15.190");
- 		pr_info("fake uname: %s/%d release=%s\\n",
+ 		pr_info("fake uname: %s/%d release=%s\n",
  			 current->comm, current->pid, tmp.release);
  	}
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
