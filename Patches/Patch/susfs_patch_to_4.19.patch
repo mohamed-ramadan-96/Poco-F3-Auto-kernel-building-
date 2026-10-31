@@ -787,7 +787,7 @@ index 5e94ec9..9b50196 100644
 @@ -1033,6 +1237,12 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
  
  	mnt->mnt.mnt_flags = old->mnt.mnt_flags;
- 	mnt->mnt.mnt_flags &= ~(MNT_WRITE_HOLD|MNT_MARKED|MNT_INTERNAL);
+ 	mnt->mnt.mnt_flags &= ~(MNT_WRITE_HOLD|MNT_MARKED|MNT_INTERNAL|MNT_UMOUNT);
 +
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +	if (unlikely(is_mnt_ksu_unshared))
@@ -1151,10 +1151,8 @@ diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
 index 9e17d92..61f6ccb 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -21,6 +21,9 @@
+@@ -21,4 +21,7 @@
  #include <linux/pkeys.h>
- #include <linux/mm_inline.h>
- #include <linux/ctype.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 +#include <linux/susfs_def.h>
 +#endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
@@ -4723,7 +4721,7 @@ index 6ac5d1b..5b90005 100644
  			user = find_user(uid);
  			if (!user)
  				goto out_unlock;	/* No processes for this user */
-@@ -1240,12 +1252,20 @@ static int override_release(char __user *release, size_t len)
+@@ -1240,22 +1252,30 @@ static int override_release(char __user *release, size_t len)
  	return ret;
  }
  
@@ -4737,6 +4735,16 @@ index 6ac5d1b..5b90005 100644
  
  	down_read(&uts_sem);
  	memcpy(&tmp, utsname(), sizeof(tmp));
+ 	if (current_uid().val == 0 &&
+ 		(!strncmp(current->comm, "bpfloader", 9) ||
+ 		!strncmp(current->comm, "netbpfload", 10) ||
+ 		!strncmp(current->comm, "uprobestatsbpfload", 18) ||
+ 		!strncmp(current->comm, "uprobestats", 11) ||
+ 		!strncmp(current->comm, "netd", 4))) {
+ 		strcpy(tmp.release, "5.15.190");
+ 		pr_info("fake uname: %s/%d release=%s\\n",
+ 			 current->comm, current->pid, tmp.release);
+ 	}
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +	if (static_branch_likely(&susfs_is_uname_spoof_buffer_set))
 +		susfs_spoof_uname(&tmp);
@@ -4826,7 +4834,7 @@ index 74ab889..664cf5c 100644
  	if (rc)
  		audit_log_format(ab, " tsid=%d", tsid);
  	else {
-@@ -194,6 +214,9 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+@@ -194,7 +214,10 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
  		kfree(scontext);
  	}
  
