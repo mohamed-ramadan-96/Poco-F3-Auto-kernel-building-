@@ -89,7 +89,7 @@ runs:
               tar -czf "$ARCHIVE" -- "${DIAGNOSTIC_FILES[@]}"
               echo "::error::SUSFS patch failed (exit code $PATCH_STATUS) or produced rejected hunks."
               if (( ${#PATCH_REJECTS[@]} > 0 )); then
-                printf '[-] Rejected patch: %s\\n' "${PATCH_REJECTS[@]}"
+                printf '[-] Rejected patch: %s\n' "${PATCH_REJECTS[@]}"
               fi
               echo "[+] Diagnostics saved to $ARCHIVE and $PATCH_LOG."
               exit 1
