@@ -85,7 +85,7 @@ runs:
               tar -czf "$ARCHIVE" -- "${DIAGNOSTIC_FILES[@]}"
               echo "::error::SUSFS patch failed (exit code $PATCH_STATUS) or left patch residue."
               if (( ${#PATCH_RESIDUE[@]} > 0 )); then
-                printf '[-] Patch residue: %s\\n' "${PATCH_RESIDUE[@]}"
+                printf '[-] Patch residue: %s\n' "${PATCH_RESIDUE[@]}"
               fi
               echo "[+] Diagnostics saved to $ARCHIVE and $PATCH_LOG."
               exit 1
