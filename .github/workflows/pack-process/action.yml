@@ -10,10 +10,6 @@ runs:
         env:
           AK3_SOURCE_INPUT: ${{ env.AK3_SOURCE }}
           AK3_BRANCH_INPUT: ${{ env.AK3_BRANCH }}
-          AK3_SOURCE_SHA_INPUT: ${{ env.AK3_SOURCE_SHA }}
-          KERNEL_SOURCE_URL_INPUT: ${{ env.KERNEL_SOURCE_URL }}
-          KERNEL_SOURCE_BRANCH_INPUT: ${{ env.KERNEL_SOURCE_BRANCH }}
-          KERNEL_SOURCE_SHA_INPUT: ${{ env.KERNEL_SOURCE_SHA }}
         run: |
           TIME=$(date +"%Y%m%d%H%M%S")
 
@@ -99,12 +95,12 @@ runs:
           cat > tmp/build-info.txt <<EOF
           device=${{ env.DEVICE_CODENAME }}
           kernel_version=${{ env.KERNEL_VERSION }}
-          kernel_source=$KERNEL_SOURCE_URL_INPUT
-          kernel_branch=$KERNEL_SOURCE_BRANCH_INPUT
-          kernel_commit=$KERNEL_SOURCE_SHA_INPUT
+          kernel_source=$KERNEL_SOURCE_URL
+          kernel_branch=$KERNEL_SOURCE_BRANCH
+          kernel_commit=$KERNEL_SOURCE_SHA
           anykernel3_source=$AK3_SOURCE_INPUT
           anykernel3_branch=$AK3_BRANCH_INPUT
-          anykernel3_commit=$AK3_SOURCE_SHA_INPUT
+          anykernel3_commit=$AK3_SOURCE_SHA
           clang_source=${{ env.CLANG_SOURCE }}
           kernelsu_setup_source=${{ env.KERNELSU_SOURCE }}
           kernelsu_branch=${{ env.KERNELSU_BRANCH }}
