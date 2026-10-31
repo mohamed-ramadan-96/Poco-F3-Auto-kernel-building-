@@ -1151,7 +1151,7 @@ diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
 index 9e17d92..61f6ccb 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -21,4 +21,7 @@
+@@ -21,6 +21,9 @@
  #include <linux/pkeys.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 +#include <linux/susfs_def.h>
