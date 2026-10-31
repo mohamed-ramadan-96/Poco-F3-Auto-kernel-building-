@@ -4834,7 +4834,7 @@ index 74ab889..664cf5c 100644
  	if (rc)
  		audit_log_format(ab, " tsid=%d", tsid);
  	else {
-@@ -194,7 +214,10 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+@@ -194,6 +214,9 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
  		kfree(scontext);
  	}
  
