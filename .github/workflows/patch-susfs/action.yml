@@ -100,20 +100,27 @@ runs:
             echo "[+] SUSFS Patch completed successfully."
           fi
 
-      - name: Apply SUS_MAP and uname spoof hooks
+      - name: Verify SUS_MAP and uname spoof hooks
         if: env.SUSFS_ENABLE == 'true'
         shell: bash
         run: |
-          cd $GITHUB_WORKSPACE/device_kernel/
-          if [ ! -f /tmp/Patches/Patch/sus_extra.patch ]; then
-            echo "[-] sus_extra.patch not found in Patches/Patch"
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel/"
+
+          # These hooks are already integrated into susfs_patch_to_4.19.patch.
+          # Do not re-apply sus_extra.patch: its hunks duplicate the integrated code.
+          if ! grep -Fq 'SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file))' fs/proc/task_mmu.c; then
+            echo "::error::SUS_MAP pagemap hook is missing from fs/proc/task_mmu.c"
             exit 1
           fi
-          cp /tmp/Patches/Patch/sus_extra.patch ./
-          patch -p1 --dry-run < sus_extra.patch
-          patch -p1 < sus_extra.patch
-          rm -f sus_extra.patch
-          echo "[+] SUS_MAP and uname spoof hooks applied."
+
+          if ! grep -Fq 'susfs_spoof_uname(&tmp);' kernel/sys.c; then
+            echo "::error::SUSFS uname spoof hook is missing from kernel/sys.c"
+            exit 1
+          fi
+
+          echo "[+] SUS_MAP pagemap and uname spoof hooks are already integrated."
+          echo "[+] No duplicate patch application required."
 
       - name: SUSFS Patch Fixed
         if: env.SUSFS_ENABLE == 'true' && env.SUSFS_SKIP != 'true'
