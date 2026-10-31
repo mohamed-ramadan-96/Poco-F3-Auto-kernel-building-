@@ -3,6 +3,11 @@ name: Build Poco F3 (alioth)
 on:
   workflow_dispatch:
     inputs:
+      ubuntu_version:
+        description: 'Ubuntu runner version'
+        type: choice
+        options: ['22.04', '24.04', '26.04']
+        default: '22.04'
       kernel_tree_preset:
         description: 'Kernel Tree'
         type: choice
@@ -193,8 +198,8 @@ env:
 
 jobs:
   build-kernel:
-    name: alioth ${{ inputs.ksu }} SUSFS:${{ inputs.susfs }} NoMount:${{ inputs.nomount }} Droidspaces:${{ inputs.droidspaces }} NTSYNC:${{ inputs.ntsync }} BypassCharging:${{ inputs.bypass_charging }} RWSwappiness:${{ inputs.rw_swappiness }} ReKernel:${{ inputs.rekernel }} BBG:${{ inputs.bbg }}
-    runs-on: ubuntu-22.04
+    name: alioth Ubuntu:${{ inputs.ubuntu_version }} KSU:${{ inputs.ksu }} SUSFS:${{ inputs.susfs }} NoMount:${{ inputs.nomount }} Droidspaces:${{ inputs.droidspaces }} NTSYNC:${{ inputs.ntsync }} BypassCharging:${{ inputs.bypass_charging }} RWSwappiness:${{ inputs.rw_swappiness }} ReKernel:${{ inputs.rekernel }} BBG:${{ inputs.bbg }}
+    runs-on: ubuntu-${{ inputs.ubuntu_version }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
@@ -560,6 +565,9 @@ jobs:
           sha256sum "$PACKAGE" | tee "$PACKAGE.sha256"
           {
             echo "package=$(basename "$PACKAGE")"
+            echo "ubuntu_runner=ubuntu-${{ inputs.ubuntu_version }}"
+            . /etc/os-release
+            echo "ubuntu_version=$VERSION_ID"
             echo "sha256=$(sha256sum "$PACKAGE" | awk '{print $1}')"
             echo "kernel_source=$KERNEL_SOURCE_URL"
             echo "kernel_branch=$KERNEL_SOURCE_BRANCH"
