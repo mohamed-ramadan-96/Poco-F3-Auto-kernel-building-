@@ -273,9 +273,24 @@ runs:
             echo "::group::[+] Starting install base packages..."
             sudo apt update
             sudo apt install git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler cpio lz4 libz3-4 elfutils -y
-            sudo apt-get install zstd libc6 binutils libc6-dev-i386 gcc g++ p7zip p7zip-full -y
+            sudo apt-get install zstd libc6 binutils libc6-dev-i386 gcc g++ p7zip p7zip-full lld -y
             echo "::endgroup::"
             echo "[+] The base packages is installed."
+
+            # Ubuntu 26.04 ships libxml2 with SONAME .so.16. Prefer its native LLD
+            # over older bundled LLD binaries that may require the removed .so.2 ABI.
+            SYSTEM_LLD="$(command -v ld.lld || true)"
+            if [[ -z "$SYSTEM_LLD" || ! -x "$SYSTEM_LLD" ]]; then
+              echo "::error::Ubuntu 26.04 system ld.lld was not found after installing lld."
+              exit 1
+            fi
+            echo "[+] Ubuntu system linker: $SYSTEM_LLD"
+            ldd "$SYSTEM_LLD" | tee "$RUNNER_TEMP/system-lld-dependencies.log"
+            if ldd "$SYSTEM_LLD" | grep -q "not found"; then
+              echo "::error::Ubuntu system ld.lld has unresolved shared-library dependencies."
+              exit 1
+            fi
+            echo "BUILD_LD=$SYSTEM_LLD" >> "$GITHUB_ENV"
 
             # Install Coccinelle
             echo "::group::[+] Starting build coccinelle..."
