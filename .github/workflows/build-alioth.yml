@@ -205,16 +205,25 @@ jobs:
         uses: actions/checkout@v6
 
       - name: 🧪 Validate options
+        shell: bash
+        env:
+          SUSFS_INPUT: ${{ inputs.susfs }}
+          KSU_INPUT: ${{ inputs.ksu }}
+          TREE_PRESET: ${{ inputs.kernel_tree_preset }}
+          SOURCE_INPUT: ${{ inputs.kernel_source }}
+          BRANCH_PRESET: ${{ inputs.kernel_branch_preset }}
+          BRANCH_INPUT: ${{ inputs.kernel_branch }}
         run: |
-          if [ "${{ inputs.susfs }}" == "true" ] && [ "${{ inputs.ksu }}" != "bakasu" ] && [ "${{ inputs.ksu }}" != "sukisu" ]; then
+          set -euo pipefail
+          if [[ "$SUSFS_INPUT" == "true" && "$KSU_INPUT" != "bakasu" && "$KSU_INPUT" != "sukisu" ]]; then
             echo "::error::SUSFS is only supported with bakasu or sukisu"
             exit 1
           fi
-          if [ "${{ inputs.kernel_tree_preset }}" == "Custom URL" ] && [ -z "${{ inputs.kernel_source }}" ]; then
+          if [[ "$TREE_PRESET" == "Custom URL" && -z "$SOURCE_INPUT" ]]; then
             echo "::error::Custom URL selected, but Kernel Tree URL is empty"
             exit 1
           fi
-          if [ "${{ inputs.kernel_branch_preset }}" == "Custom Branch" ] && [ -z "${{ inputs.kernel_branch }}" ]; then
+          if [[ "$BRANCH_PRESET" == "Custom Branch" && -z "$BRANCH_INPUT" ]]; then
             echo "::error::Custom Branch selected, but Kernel Branch is empty"
             exit 1
           fi
