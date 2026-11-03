@@ -118,6 +118,7 @@ env:
   SELECTED_NTSYNC: ${{ inputs.ntsync }}
   SELECTED_BYPASS_CHARGING: ${{ inputs.bypass_charging }}
   SELECTED_RW_SWAPPINESS: ${{ inputs.rw_swappiness }}
+  SELECTED_BATTERY_PROFILE: ${{ inputs.battery }}
 
   CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH: ""
