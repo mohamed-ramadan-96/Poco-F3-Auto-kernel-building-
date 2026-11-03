@@ -10,6 +10,7 @@ runs:
         env:
           AK3_SOURCE_INPUT: ${{ env.AK3_SOURCE }}
           AK3_BRANCH_INPUT: ${{ env.AK3_BRANCH }}
+          BATTERY_PROFILE: ${{ env.SELECTED_BATTERY_PROFILE }}
         run: |
           TIME=$(date +"%Y%m%d%H%M%S")
 
@@ -115,6 +116,7 @@ runs:
           ntsync=${{ env.SELECTED_NTSYNC }}
           bypass_charging=${{ env.SELECTED_BYPASS_CHARGING }}
           rw_swappiness=${{ env.SELECTED_RW_SWAPPINESS }}
+          battery_profile=${{ env.SELECTED_BATTERY_PROFILE }}
           EOF
           if [[ -s "$GITHUB_WORKSPACE/dependency-revisions.txt" ]]; then
             {
@@ -127,8 +129,22 @@ runs:
           7za a -mx9 tmp.zip *
           cd ..
 
-                    ZIP_NAME="${ZIP_NAME:-alioth-aosp-AnyKernel3}"
+          ZIP_NAME="${ZIP_NAME:-alioth-aosp-AnyKernel3}"
           NAME="${ZIP_NAME%.zip}"
+
+          # AnyKernel3 selects the battery-specific DTBO/DTB from the ZIP filename.
+          # Remove stale markers first, then append the marker matching this build.
+          NAME="${NAME//-j3s/}"
+          NAME="${NAME//-stk/}"
+          case "${BATTERY_PROFILE}" in
+            5000-apollo) NAME="${NAME}-j3s" ;;
+            4520-stock)  NAME="${NAME}-stk" ;;
+            *)
+              echo "::error::Unsupported battery profile: ${BATTERY_PROFILE}"
+              exit 1
+              ;;
+          esac
+
           cp -fp tmp/tmp.zip "${NAME}.zip"
           rm -rf tmp
 
