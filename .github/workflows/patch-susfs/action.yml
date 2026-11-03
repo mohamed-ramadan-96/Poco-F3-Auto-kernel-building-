@@ -62,12 +62,18 @@ runs:
             echo "SUSFS_SKIP=true" >> "$GITHUB_ENV"
 
           else
-            PATCH_FILE="susfs_patch_to_${KERNEL_VERSION}.patch"
-            if [[ ! -s "/tmp/Patches/Patch/$PATCH_FILE" ]]; then
-              echo "::error::Required SUSFS patch is missing: $PATCH_FILE"
-              exit 1
+            if [[ "${KERNEL_VERSION}" == "4.19" && -s "$GITHUB_WORKSPACE/Patches/Patch/susfs_patch_to_4.19.patch" ]]; then
+              cp "$GITHUB_WORKSPACE/Patches/Patch/susfs_patch_to_4.19.patch" ./
+              PATCH_FILE="susfs_patch_to_4.19.patch"
+              SUSFS_VERSION="2.3.0-4.19-susfs"
+            else
+              PATCH_FILE="susfs_patch_to_${KERNEL_VERSION}.patch"
+              if [[ ! -s "/tmp/Patches/Patch/$PATCH_FILE" ]]; then
+                echo "::error::Required SUSFS patch is missing: $PATCH_FILE"
+                exit 1
+              fi
+              cp "/tmp/Patches/Patch/$PATCH_FILE" ./
             fi
-            cp "/tmp/Patches/Patch/$PATCH_FILE" ./
 
             PATCH_LOG="susfs-patch.log"
             set +e
