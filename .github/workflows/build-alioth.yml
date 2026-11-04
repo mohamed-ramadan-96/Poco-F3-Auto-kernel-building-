@@ -465,7 +465,7 @@ jobs:
                       raise SystemExit("Could not safely mark VPN Hide's sockptr capability in its public header.")
                   header_text = header_text.replace(
                       "#define _LINUX_VPNHIDE_H",
-                      "#define _LINUX_VPNHIDE_H\\n\\n#define VPNHIDE_BACKPORT_SOCKPTR 1",
+                      "#define _LINUX_VPNHIDE_H\n\n#define VPNHIDE_BACKPORT_SOCKPTR 1",
                       1,
                   )
                   header_text = header_text.replace(
