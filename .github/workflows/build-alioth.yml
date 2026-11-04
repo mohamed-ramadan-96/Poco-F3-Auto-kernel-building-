@@ -179,7 +179,6 @@ env:
   REKERNEL_ENABLE: ${{ inputs.rekernel }}
   DROIDSPACES_ENABLE: ${{ inputs.droidspaces }}
   NOMOUNT_ENABLE: ${{ inputs.nomount }}
-  VPNHIDE_ENABLE: ${{ inputs.vpnhide }}
   VPNHIDE_SOURCE: "https://github.com/okhsunrog/vpnhide.git"
   VPNHIDE_COMMIT: "d2b6b7b1762bc8bece6cfc4b55ee919f8896a8b7"
 
@@ -691,4 +690,5 @@ jobs:
             device_kernel/rej_files_*.tar.gz
             device_kernel/susfs-patch.log
             device_kernel/compile_commands.json
+            ${{ runner.temp }}/vpnhide-integration-review/
           if-no-files-found: warn
