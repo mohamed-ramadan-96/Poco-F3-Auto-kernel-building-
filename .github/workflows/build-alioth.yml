@@ -430,9 +430,9 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::[+] Apply VPN Hide for Linux 4.19"
-          python "$VPNHIDE_DIR/builtin/scripts/integrate.py" apply \\
-            --kernel "$KERNEL_DIR" \\
-            --kmi android10-4.19 \\
+          python "$VPNHIDE_DIR/builtin/scripts/integrate.py" apply \
+            --kernel "$KERNEL_DIR" \
+            --kmi android10-4.19 \
             --output "$REVIEW_DIR"
 
           if [[ ! -x "$KERNEL_DIR/scripts/config" ]]; then
