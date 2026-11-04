@@ -4317,7 +4317,7 @@ new file mode 100644
 index 0000000..58128c7
 --- /dev/null
 +++ b/include/linux/susfs.h
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,259 @@
 +#ifndef KSU_SUSFS_H
 +#define KSU_SUSFS_H
 +
@@ -4345,6 +4345,7 @@ index 0000000..58128c7
 +/********/
 +/* ENUM */
 +/********/
++#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 +enum UID_SCHEME {
 +	UID_NON_APP_PROC = 0,
 +	UID_ROOT_PROC_EXCEPT_SU_PROC,
@@ -4352,6 +4353,7 @@ index 0000000..58128c7
 +	UID_UMOUNTED_APP_PROC,
 +	UID_UMOUNTED_PROC,
 +};
++#endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 +
 +/**********/
 +/* STRUCT */
