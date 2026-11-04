@@ -37,7 +37,7 @@ on:
       zip_name:
         description: 'Zip name without .zip'
         type: string
-        default: 'Aliothfake-ko-j3s'
+        default: 'Alioth-KO'
       custom_kernel_version:
         description: 'Custom Kernel Version suffix (e.g. -FakeDreamer)'
         type: string
