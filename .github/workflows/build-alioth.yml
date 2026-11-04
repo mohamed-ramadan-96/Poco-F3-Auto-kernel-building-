@@ -429,6 +429,94 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::[+] Apply VPN Hide for Linux 4.19"
+          # Linux 4.19 trees may carry the later sockptr API as a backport.
+          # Add a CI-local rule overlay only when that exact API shape is detected.
+          export VPNHIDE_KERNEL_DIR="$KERNEL_DIR"
+          python - "$VPNHIDE_DIR/builtin/scripts/integration_rules.py" <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          rules_path = pathlib.Path(sys.argv[1])
+          kernel = pathlib.Path(os.environ["VPNHIDE_KERNEL_DIR"])
+          socket_path = kernel / "net/socket.c"
+          socket_text = socket_path.read_text()
+          sockptr_header = kernel / "include/linux/sockptr.h"
+
+          if sockptr_header.is_file() and "USER_SOCKPTR(optval)" in socket_text:
+              expected_dispatch = (
+                  "\\t\\tif (level == SOL_SOCKET)\\n"
+                  "\\t\\t\\terr =\\n"
+                  "\\t\\t\\t    sock_setsockopt(sock, level, optname, USER_SOCKPTR(optval),\\n"
+                  "\\t\\t\\t\\t\\t    optlen);\\n"
+              )
+              if "BPF_CGROUP_RUN_PROG_SETSOCKOPT" not in socket_text or expected_dispatch not in socket_text:
+                  raise SystemExit("Detected sockptr.h/USER_SOCKPTR but the setsockopt dispatch is not the verified BPF-backport shape; refusing an unsafe VPN Hide patch.")
+
+              overlay = r'''
+
+          # CI-local compatibility for Linux 4.19 trees backported to sockptr_t.
+          # The interception runs after BPF cgroup processing and preserves the
+          # kernel_optval path. FROZEN uses KERNEL_SOCKPTR, avoiding set_fs().
+          import os as _vpnhide_os
+          from pathlib import Path as _vpnhide_Path
+          _vpnhide_socket = (_vpnhide_Path(_vpnhide_os.environ["VPNHIDE_KERNEL_DIR"]) / "net/socket.c").read_text()
+          _vpnhide_expected = (
+              "\\t\\tif (level == SOL_SOCKET)\\n"
+              "\\t\\t\\terr =\\n"
+              "\\t\\t\\t    sock_setsockopt(sock, level, optname, USER_SOCKPTR(optval),\\n"
+              "\\t\\t\\t\\t\\t    optlen);\\n"
+          )
+          if _vpnhide_expected not in _vpnhide_socket:
+              raise RuntimeError("sockptr backport dispatch changed after compatibility detection")
+          _vpnhide_rules = EDITS["android10-4.19"]["net/socket.c"]
+          _vpnhide_rules[1] = (
+              "\\tint err, fput_needed;\\n\\tstruct socket *sock;\\n",
+              "\\tint err, fput_needed;\\n\\tstruct socket *sock;\\n"
+              "\\tunion vpnhide_bind_snapshot vh_snap;\\n",
+          )
+          _vpnhide_rules[2] = (
+              _vpnhide_expected,
+              "\\t\\tif (level == SOL_SOCKET) {\\n"
+              "\\t\\t\\tenum vpnhide_bind_action vh_act;\\n"
+              "\\t\\t\\tsockptr_t vh_optval = USER_SOCKPTR(optval);\\n"
+              "\\t\\t\\tvh_act = vpnhide_setsockopt_bind(sock->sk, optname,\\n"
+              "\\t\\t\\t\\t\\t\\t vh_optval, optlen, &vh_snap);\\n"
+              "\\t\\t\\tif (vh_act == VPNHIDE_BIND_DENY) {\\n"
+              "\\t\\t\\t\\terr = -ENODEV;\\n"
+              "\\t\\t\\t\\tgoto out_put;\\n"
+              "\\t\\t\\t}\\n"
+              "\\t\\t\\tif (vh_act == VPNHIDE_BIND_FAULT) {\\n"
+              "\\t\\t\\t\\terr = -EFAULT;\\n"
+              "\\t\\t\\t\\tgoto out_put;\\n"
+              "\\t\\t\\t}\\n"
+              "\\t\\t\\tif (vh_act == VPNHIDE_BIND_FROZEN)\\n"
+              "\\t\\t\\t\\tvh_optval = KERNEL_SOCKPTR(&vh_snap);\\n"
+              "\\t\\t\\terr = sock_setsockopt(sock, level, optname, vh_optval, optlen);\\n"
+              "\\t\\t}\\n",
+          )
+          _vpnhide_rules[3] = (
+              "\\t\\t\\terr =\\n"
+              "\\t\\t\\t    sock->ops->setsockopt(sock, level, optname, optval,\\n"
+              "\\t\\t\\t\\t\\t  optlen);\\n"
+              "out_put:\\n",
+              "\\t\\t\\terr =\\n"
+              "\\t\\t\\t    sock->ops->setsockopt(sock, level, optname, optval,\\n"
+              "\\t\\t\\t\\t\\t  optlen);\\n"
+              "out_put:\\n",
+          )
+          '''
+              current = rules_path.read_text()
+              marker = "CI-local compatibility for Linux 4.19 trees backported to sockptr_t."
+              if marker not in current:
+                  rules_path.write_text(current + overlay)
+              print("[+] Applied verified Linux 4.19 sockptr backport rules.")
+          elif "USER_SOCKPTR(optval)" in socket_text or sockptr_header.exists():
+              raise SystemExit("Partial/unknown sockptr backport detected; refusing to guess the VPN Hide socket integration.")
+          else:
+              print("[i] No sockptr backport detected; using the upstream android10-4.19 rules.")
+          PY
+
           python "$VPNHIDE_DIR/builtin/scripts/integrate.py" apply \
             --kernel "$KERNEL_DIR" \
             --kmi android10-4.19 \
