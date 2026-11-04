@@ -11,6 +11,22 @@ runs:
           cd "$GITHUB_WORKSPACE/device_kernel/"
           curl -fsSL https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -s
 
+          # Fix NoMount name_snapshot access for the Linux 4.19 dcache API.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("NoMount/kernel/src/nomount.c")
+          content = source.read_text()
+          old = "out->r_name = name->name.name;\n            out->r_name_len = name->name.len;"
+          new = "out->r_name = (const char *)name->name;\n            out->r_name_len = dentry->d_name.len;"
+          if content.count("out->r_name = name->name.name;") != 1 or content.count("out->r_name_len = name->name.len;") != 1:
+              raise SystemExit("NoMount compatibility patch: expected source lines not found exactly once")
+          if old not in content:
+              raise SystemExit("NoMount compatibility patch: expected adjacent source lines not found")
+          source.write_text(content.replace(old, new, 1))
+          print("[+] Applied Linux 4.19 name_snapshot compatibility fix.")
+          PY
+
           echo "CONFIG_NOMOUNT=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           if ! grep -Rqs --include='*.c' --include='*.h' 'CONFIG_NOMOUNT\|NOMOUNT' fs include kernel drivers 2>/dev/null; then

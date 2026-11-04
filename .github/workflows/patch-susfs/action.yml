@@ -32,6 +32,37 @@ runs:
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
 
+          # Define the optional Priority UID Filter symbol in the selected KernelSU Kconfig.
+          KSU_KCONFIG="drivers/kernelsu/Kconfig"
+          if [[ ! -f "$KSU_KCONFIG" ]]; then
+            echo "::error::KernelSU Kconfig not found: $KSU_KCONFIG"
+            exit 1
+          fi
+          if ! grep -q '^config KSU_SUSFS_PRIORITY_UID_FILTER$' "$KSU_KCONFIG"; then
+            if ! grep -q '^config KSU_SUSFS$' "$KSU_KCONFIG"; then
+              echo "::error::Selected KernelSU variant does not expose CONFIG_KSU_SUSFS."
+              exit 1
+            fi
+            python3 - "$KSU_KCONFIG" <<'PY'
+          import pathlib, sys
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text()
+          marker = "\nendmenu"
+          index = text.rfind(marker)
+          if index < 0:
+              raise SystemExit("::error::Could not find final endmenu in KernelSU Kconfig.")
+          option = """
+          config KSU_SUSFS_PRIORITY_UID_FILTER
+          	bool "SUSFS Priority UID Filter"
+          	depends on KSU_SUSFS
+          	default y
+          	help
+          	  Build the optional SUSFS priority UID filter.
+          """
+          path.write_text(text[:index] + option + text[index:])
+          PY
+          fi
+
           echo "CONFIG_KSU_SUSFS=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
@@ -42,6 +73,7 @@ runs:
           echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}
 
           if grep -q "THREAD_INFO_IN_TASK" "drivers/kernelsu/Kconfig"; then
             echo "CONFIG_THREAD_INFO_IN_TASK=y" >> ./arch/${{ env.KERNEL_ARCH }}/configs/${{ env.DEFCONFIG_NAME }}

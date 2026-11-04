@@ -523,6 +523,7 @@ jobs:
           }
 
           [[ "$WANT_SUSFS" != "true" ]] || verify_enabled CONFIG_KSU_SUSFS
+          [[ "$WANT_SUSFS" != "true" ]] || verify_enabled CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
           [[ "$WANT_REKERNEL" != "true" ]] || verify_enabled CONFIG_REKERNEL
           [[ "$WANT_NOMOUNT" != "true" ]] || verify_enabled CONFIG_NOMOUNT
           [[ "$WANT_BBG" != "true" ]] || verify_enabled CONFIG_BBG
