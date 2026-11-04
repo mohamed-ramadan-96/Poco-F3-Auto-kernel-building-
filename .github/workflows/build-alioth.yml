@@ -76,6 +76,10 @@ on:
         description: 'Enable NoMount (external patch action)'
         type: boolean
         default: false
+      vpnhide:
+        description: 'Enable VPN Hide built-in backend (Linux 4.19)'
+        type: boolean
+        default: false
       droidspaces:
         description: 'Droidspaces (containers)'
         type: boolean
@@ -175,6 +179,9 @@ env:
   REKERNEL_ENABLE: ${{ inputs.rekernel }}
   DROIDSPACES_ENABLE: ${{ inputs.droidspaces }}
   NOMOUNT_ENABLE: ${{ inputs.nomount }}
+  VPNHIDE_ENABLE: ${{ inputs.vpnhide }}
+  VPNHIDE_SOURCE: "https://github.com/okhsunrog/vpnhide.git"
+  VPNHIDE_COMMIT: "d2b6b7b1762bc8bece6cfc4b55ee919f8896a8b7"
 
   HOOK_METHOD: ${{ inputs.ksu == 'xxksu' && 'manual' || 'syscall' }}
 
@@ -199,7 +206,7 @@ env:
 
 jobs:
   build-kernel:
-    name: alioth Ubuntu:${{ inputs.ubuntu_version }} KSU:${{ inputs.ksu }} SUSFS:${{ inputs.susfs }} NoMount:${{ inputs.nomount }} Droidspaces:${{ inputs.droidspaces }} NTSYNC:${{ inputs.ntsync }} BypassCharging:${{ inputs.bypass_charging }} RWSwappiness:${{ inputs.rw_swappiness }} ReKernel:${{ inputs.rekernel }} BBG:${{ inputs.bbg }}
+    name: alioth Ubuntu:${{ inputs.ubuntu_version }} KSU:${{ inputs.ksu }} SUSFS:${{ inputs.susfs }} NoMount:${{ inputs.nomount }} VPNHide:${{ inputs.vpnhide }} Droidspaces:${{ inputs.droidspaces }} NTSYNC:${{ inputs.ntsync }} BypassCharging:${{ inputs.bypass_charging }} RWSwappiness:${{ inputs.rw_swappiness }} ReKernel:${{ inputs.rekernel }} BBG:${{ inputs.bbg }}
     runs-on: ubuntu-${{ inputs.ubuntu_version }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
@@ -392,6 +399,63 @@ jobs:
       - name: 🛡️ Patch Kernel of NoMount
         uses: ./.github/workflows/patch-nomount
 
+      - name: 🐍 Set up Python 3.12 for VPN Hide integration
+        if: ${{ inputs.vpnhide }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: 🛡️ Integrate VPN Hide built-in backend
+        if: ${{ inputs.vpnhide }}
+        shell: bash
+        env:
+          VPNHIDE_SOURCE_URL: ${{ env.VPNHIDE_SOURCE }}
+          VPNHIDE_EXPECTED_COMMIT: ${{ env.VPNHIDE_COMMIT }}
+        run: |
+          set -euo pipefail
+          KERNEL_DIR="$GITHUB_WORKSPACE/device_kernel"
+          VPNHIDE_DIR="$RUNNER_TEMP/vpnhide-source"
+          REVIEW_DIR="$RUNNER_TEMP/vpnhide-integration-review"
+          DEFCONFIG="$KERNEL_DIR/arch/${KERNEL_ARCH}/configs/${DEFCONFIG_NAME}"
+
+          echo "::group::[+] Fetching pinned VPN Hide source"
+          git clone --depth=1 "$VPNHIDE_SOURCE_URL" "$VPNHIDE_DIR"
+          ACTUAL_VPNHIDE_COMMIT="$(git -C "$VPNHIDE_DIR" rev-parse HEAD)"
+          if [[ "$ACTUAL_VPNHIDE_COMMIT" != "$VPNHIDE_EXPECTED_COMMIT" ]]; then
+            echo "::error::VPN Hide source revision mismatch. Expected $VPNHIDE_EXPECTED_COMMIT, got $ACTUAL_VPNHIDE_COMMIT."
+            exit 1
+          fi
+          echo "VPNHIDE_SOURCE_SHA=$ACTUAL_VPNHIDE_COMMIT" >> "$GITHUB_ENV"
+          echo "[+] Pinned VPN Hide revision: $ACTUAL_VPNHIDE_COMMIT"
+          echo "::endgroup::"
+
+          echo "::group::[+] Apply VPN Hide for Linux 4.19"
+          python "$VPNHIDE_DIR/builtin/scripts/integrate.py" apply \\
+            --kernel "$KERNEL_DIR" \\
+            --kmi android10-4.19 \\
+            --output "$REVIEW_DIR"
+
+          if [[ ! -x "$KERNEL_DIR/scripts/config" ]]; then
+            chmod +x "$KERNEL_DIR/scripts/config"
+          fi
+          "$KERNEL_DIR/scripts/config" --file "$DEFCONFIG" --enable CONFIG_VPNHIDE
+          grep -qx 'CONFIG_VPNHIDE=y' "$DEFCONFIG" || {
+            echo "::error::CONFIG_VPNHIDE=y was not written to the selected defconfig."
+            exit 1
+          }
+          test -s "$KERNEL_DIR/security/vpnhide/core.c"
+          test -s "$KERNEL_DIR/include/linux/vpnhide.h"
+          echo "[+] VPN Hide built-in integration and defconfig option are ready."
+          echo "::endgroup::"
+
+      - name: 📦 Upload VPN Hide integration review
+        if: ${{ inputs.vpnhide && success() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: vpnhide-integration-review
+          path: ${{ runner.temp }}/vpnhide-integration-review/
+          if-no-files-found: error
+
       - name: 🧾 Audit patch results
         shell: bash
         run: |
@@ -417,6 +481,10 @@ jobs:
           fi
           if [[ "${{ inputs.nomount }}" == "true" ]] && ! grep -Rqs --include='*.c' --include='*.h' 'NOMOUNT' fs include kernel drivers; then
             echo "::error::NoMount was requested but no NoMount source marker was found."
+            exit 1
+          fi
+          if [[ "${{ inputs.vpnhide }}" == "true" ]] && [[ ! -s security/vpnhide/core.c || ! -s include/linux/vpnhide.h ]]; then
+            echo "::error::VPN Hide was requested but its built-in source/header is missing."
             exit 1
           fi
           echo "[+] Patch audit passed; no .rej/.orig files remain."
@@ -508,6 +576,7 @@ jobs:
           WANT_NTSYNC: ${{ inputs.ntsync }}
           WANT_BYPASS_CHARGING: ${{ inputs.bypass_charging }}
           WANT_RW_SWAPPINESS: ${{ inputs.rw_swappiness }}
+          WANT_VPNHIDE: ${{ inputs.vpnhide }}
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/device_kernel"
@@ -530,6 +599,7 @@ jobs:
           [[ "$WANT_NTSYNC" != "true" ]] || verify_enabled CONFIG_NTSYNC
           [[ "$WANT_BYPASS_CHARGING" != "true" ]] || verify_enabled CONFIG_BYPASS_CHARGING
           [[ "$WANT_RW_SWAPPINESS" != "true" ]] || verify_enabled CONFIG_RW_SWAPPINESS
+          [[ "$WANT_VPNHIDE" != "true" ]] || verify_enabled CONFIG_VPNHIDE
 
           if [[ "$WANT_DROIDSPACES" == "true" ]]; then
             test -s arch/arm64/configs/droidspaces.config || { echo "::error::Droidspaces config is missing."; exit 1; }
@@ -587,6 +657,8 @@ jobs:
             echo "ntsync=${{ inputs.ntsync }}"
             echo "bypass_charging=${{ inputs.bypass_charging }}"
             echo "rw_swappiness=${{ inputs.rw_swappiness }}"
+            echo "vpnhide=${{ inputs.vpnhide }}"
+            echo "vpnhide_source_sha=${VPNHIDE_SOURCE_SHA:-disabled}"
           } > "$GITHUB_WORKSPACE/device_kernel/build-info.txt"
           echo "[+] Package validated: $PACKAGE"
 
