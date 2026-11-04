@@ -436,7 +436,7 @@ jobs:
           import os
           import pathlib
           import sys
-import textwrap
+          import textwrap
 
           rules_path = pathlib.Path(sys.argv[1])
           kernel = pathlib.Path(os.environ["VPNHIDE_KERNEL_DIR"])
