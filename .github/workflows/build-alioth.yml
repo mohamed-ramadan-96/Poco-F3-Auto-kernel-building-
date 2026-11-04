@@ -506,15 +506,13 @@ jobs:
               "\t\t\t\t\t\t vh_optval, optlen, &vh_snap);\n"
               "\t\t\tif (vh_act == VPNHIDE_BIND_DENY) {\n"
               "\t\t\t\terr = -ENODEV;\n"
-              "\t\t\t\tgoto out_put;\n"
-              "\t\t\t}\n"
-              "\t\t\tif (vh_act == VPNHIDE_BIND_FAULT) {\n"
+              "\t\t\t} else if (vh_act == VPNHIDE_BIND_FAULT) {\n"
               "\t\t\t\terr = -EFAULT;\n"
-              "\t\t\t\tgoto out_put;\n"
+              "\t\t\t} else {\n"
+              "\t\t\t\tif (vh_act == VPNHIDE_BIND_FROZEN)\n"
+              "\t\t\t\t\tvh_optval = KERNEL_SOCKPTR(&vh_snap);\n"
+              "\t\t\t\terr = sock_setsockopt(sock, level, optname, vh_optval, optlen);\n"
               "\t\t\t}\n"
-              "\t\t\tif (vh_act == VPNHIDE_BIND_FROZEN)\n"
-              "\t\t\t\tvh_optval = KERNEL_SOCKPTR(&vh_snap);\n"
-              "\t\t\terr = sock_setsockopt(sock, level, optname, vh_optval, optlen);\n"
               "\t\t}\n",
           )
           _vpnhide_rules[3] = (
