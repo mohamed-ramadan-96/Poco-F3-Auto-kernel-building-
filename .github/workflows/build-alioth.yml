@@ -180,7 +180,7 @@ env:
   DROIDSPACES_ENABLE: ${{ inputs.droidspaces }}
   NOMOUNT_ENABLE: ${{ inputs.nomount }}
   VPNHIDE_SOURCE: "https://github.com/okhsunrog/vpnhide.git"
-  VPNHIDE_COMMIT: "d2b6b7b1762bc8bece6cfc4b55ee919f8896a8b7"
+  VPNHIDE_COMMIT: "b0999b7db7356cd2b7809bb762ab92f6b507b739"
 
   HOOK_METHOD: ${{ inputs.ksu == 'xxksu' && 'manual' || 'syscall' }}
 
