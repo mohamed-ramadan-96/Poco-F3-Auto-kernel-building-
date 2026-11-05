@@ -492,10 +492,20 @@ jobs:
           if _vpnhide_expected not in _vpnhide_socket:
               raise RuntimeError("sockptr backport dispatch changed after compatibility detection")
           _vpnhide_rules = EDITS["android10-4.19"]["net/socket.c"]
+          _vpnhide_decl = (
+              "static int __sys_setsockopt(int fd, int level, int optname,\\n"
+              "			    char __user *optval, int optlen)\\n"
+              "{\\n"
+              "\\tmm_segment_t oldfs = get_fs();\\n"
+              "\\tchar *kernel_optval = NULL;\\n"
+              "\\tint err, fput_needed;\\n"
+              "\\tstruct socket *sock;\\n"
+          )
+          if _vpnhide_socket.count(_vpnhide_decl) != 1:
+              raise RuntimeError("could not uniquely identify __sys_setsockopt declaration block")
           _vpnhide_rules[1] = (
-              "\tint err, fput_needed;\n\tstruct socket *sock;\n",
-              "\tint err, fput_needed;\n\tstruct socket *sock;\n"
-              "\tunion vpnhide_bind_snapshot vh_snap;\n",
+              _vpnhide_decl,
+              _vpnhide_decl + "\\tunion vpnhide_bind_snapshot vh_snap;\\n",
           )
           _vpnhide_rules[2] = (
               _vpnhide_expected,
