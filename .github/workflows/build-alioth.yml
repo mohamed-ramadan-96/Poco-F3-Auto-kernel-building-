@@ -515,17 +515,7 @@ jobs:
               "\t\t\t}\n"
               "\t\t}\n",
           )
-          _vpnhide_rules[3] = (
-              "\t\t\terr =\n"
-              "\t\t\t    sock->ops->setsockopt(sock, level, optname, optval,\n"
-              "\t\t\t\t\t  optlen);\n"
-              "out_put:\n",
-              "\t\t\terr =\n"
-              "\t\t\t    sock->ops->setsockopt(sock, level, optname, optval,\n"
-              "\t\t\t\t\t  optlen);\n"
-              "out_put:\n",
-          )
-          '''
+          ''')
               current = rules_path.read_text()
               marker = "CI-local compatibility for Linux 4.19 trees backported to sockptr_t."
               if marker not in current:
