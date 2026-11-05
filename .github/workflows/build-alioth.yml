@@ -494,12 +494,12 @@ jobs:
           _vpnhide_rules = EDITS["android10-4.19"]["net/socket.c"]
           import re as _vpnhide_re
           _vpnhide_decl_matches = list(_vpnhide_re.finditer(
-              r"static int __sys_setsockopt\\(int fd, int level, int optname,\\n"
-              r"[ \\t]+char __user \\*optval, int optlen\\)\\n\\{\\n"
-              r"\\tmm_segment_t oldfs = get_fs\\(\\);\\n"
-              r"\\tchar \\*kernel_optval = NULL;\\n"
-              r"\\tint err, fput_needed;\\n"
-              r"\\tstruct socket \\*sock;\\n",
+              r"static int __sys_setsockopt\(int fd, int level, int optname,\n"
+              r"[ \t]+char __user \*optval, int optlen\)\n\{\n"
+              r"\tmm_segment_t oldfs = get_fs\(\);\n"
+              r"\tchar \*kernel_optval = NULL;\n"
+              r"\tint err, fput_needed;\n"
+              r"\tstruct socket \*sock;\n",
               _vpnhide_socket,
           ))
           if len(_vpnhide_decl_matches) != 1:
@@ -507,7 +507,7 @@ jobs:
           _vpnhide_decl = _vpnhide_decl_matches[0].group(0)
           _vpnhide_rules[1] = (
               _vpnhide_decl,
-              _vpnhide_decl + "\\tunion vpnhide_bind_snapshot vh_snap;\\n",
+              _vpnhide_decl + "\tunion vpnhide_bind_snapshot vh_snap;\n",
           )
           _vpnhide_rules[2] = (
               _vpnhide_expected,
