@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
 # Patches author: backslashxx @ GitHub
 # Shell authon: JackA1ltman <cs2dtzq@163.com>
 # Tested kernel versions: 5.4, 4.19, 4.14, 4.9, 4.4, 3.18
@@ -26,6 +28,10 @@ SECOND_VERSION=$(echo "$KERNEL_VERSION" | awk -F '.' '{print $2}')
 echo "Current syscall patch version:$PATCH_LEVEL"
 
 for i in "${patch_files[@]}"; do
+    if [[ ! -f "$i" ]]; then
+        echo "[-] Required hook target is missing: $i" >&2
+        exit 1
+    fi
 
     if grep -q "ksu_handle" "$i"; then
         echo "[-] Warning: $i contains KernelSU"
@@ -50,7 +56,7 @@ for i in "${patch_files[@]}"; do
             echo "[+] fs/exec.c Patched!"
             echo "[+] Count: $(grep -c "ksu_handle_execveat" "fs/exec.c")"
         else
-            echo "[-] fs/exec.c patch failed for unknown reasons, please provide feedback in time."
+            echo "[-] fs/exec.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
         fi
 
         echo "======================================"
@@ -69,7 +75,7 @@ for i in "${patch_files[@]}"; do
             echo "[+] fs/open.c Patched!"
             echo "[+] Count: $(grep -c "ksu_handle_faccessat" "fs/open.c")"
         else
-            echo "[-] fs/open.c patch failed for unknown reasons, please provide feedback in time."
+            echo "[-] fs/open.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
         fi
 
         echo "======================================"
@@ -102,7 +108,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] fs/read_write.c Patched!"
                 echo "[+] Count: $(grep -c "ksu_handle_sys_read" "fs/read_write.c")"
             else
-                echo "[-] fs/read_write.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] fs/read_write.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] KernelSU have no ksu_handle_sys_read, Skipped."
@@ -132,7 +138,7 @@ for i in "${patch_files[@]}"; do
             echo "[+] fs/stat.c Patched!"
             echo "[+] Count: $(grep -c "ksu_handle_stat" "fs/stat.c")"
         else
-            echo "[-] fs/stat.c patch failed for unknown reasons, please provide feedback in time."
+            echo "[-] fs/stat.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
         fi
 
         echo "======================================"
@@ -151,7 +157,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] fs/namei.c Patched!"
                 echo "[+] Count: $(grep -c "throne_tracker" "fs/namei.c")"
             else
-                echo "[-] fs/namei.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] fs/namei.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] Kernel needn't throne_tracker, Skipped."
@@ -171,7 +177,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] drivers/input/input.c Patched!"
                 echo "[+] Count: $(grep -c "ksu_handle_input_handle_event" "drivers/input/input.c")"
             else
-                echo "[-] drivers/input/input.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] drivers/input/input.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] KernelSU have no ksu_input_hook, Skipped."
@@ -205,7 +211,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] security/security.c Patched!"
                 echo "[+] Count: $(grep -c "ksu_handle_setuid" "security/security.c")"
             else
-                echo "[-] security/security.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] security/security.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         elif grep -rq --include="*.c" --include="*.h" "ksu_inode_rename" "drivers/kernelsu/" >/dev/null 2>&1; then
             echo "[-] KernelSU needn't security.c hooks, Skipped."
@@ -229,7 +235,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] security/selinux/hooks.c Patched!"
                 echo "[+] Count: $(grep -c "security_secid_to_secctx" "security/selinux/hooks.c")"
             else
-                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] Kernel needn't selinux fix, Skipped."
@@ -242,7 +248,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] security/selinux/hooks.c Part II Patched!"
                 echo "[+] Count: $(grep -c "static struct security_operations selinux_ops" "security/selinux/hooks.c")"
             else
-                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
 
         else
@@ -272,7 +278,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] security/selinux/hooks.c Part III Patched!"
                 echo "[+] Count: $(grep -c "ksu_hide_setprocattr" "security/selinux/hooks.c")"
             else
-                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] KernelSU needn't security extra hooks, Skipped."
@@ -292,7 +298,7 @@ for i in "${patch_files[@]}"; do
                 echo "[+] security/selinux/hooks.c Patched!"
                 echo "[+] Count: $(grep -c "static DEFINE_RWLOCK" "security/selinux/ss/services.c")"
             else
-                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] security/selinux/hooks.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         fi
 
@@ -322,7 +328,7 @@ extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void 
                 echo "[+] kernel/reboot.c Patched!"
                 echo "[+] Count: $(grep -c "ksu_handle_sys_reboot" "kernel/reboot.c")"
             else
-                echo "[-] kernel/reboot.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] kernel/reboot.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] KernelSU needn't ksu_handle_sys_reboot, Skipped."
@@ -353,7 +359,7 @@ extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void 
                 echo "[+] kernel/sys.c Patched!"
                 echo "[+] Count: $(grep -c "ksu_handle_setresuid" "kernel/sys.c")"
             else
-                echo "[-] kernel/sys.c patch failed for unknown reasons, please provide feedback in time."
+                echo "[-] kernel/sys.c patch failed for unknown reasons, please provide feedback in time." >&2; exit 1
             fi
         else
             echo "[-] KernelSU have no ksu_handle_setresuid, Skipped."
