@@ -526,8 +526,18 @@ jobs:
             echo "[+] Verified $symbol=y"
           }
 
-          [[ "$WANT_SUSFS" != "true" ]] || verify_enabled CONFIG_KSU_SUSFS
-          [[ "$WANT_SUSFS" != "true" ]] || verify_enabled CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
+          if [[ "$WANT_SUSFS" == "true" ]]; then
+            verify_enabled CONFIG_KSU_SUSFS
+            verify_enabled CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
+          else
+            for symbol in CONFIG_KSU_SUSFS_SUS_MAP CONFIG_KSU_SUSFS_SPOOF_UNAME; do
+              if grep -qx "$symbol=y" out/.config; then
+                echo "::error::SUSFS is disabled in workflow inputs but $symbol remains enabled in out/.config."
+                exit 1
+              fi
+            done
+            echo "[+] Verified SUSFS-specific options are disabled."
+          fi
           [[ "$WANT_REKERNEL" != "true" ]] || verify_enabled CONFIG_REKERNEL
           [[ "$WANT_NOMOUNT" != "true" ]] || verify_enabled CONFIG_NOMOUNT
           [[ "$WANT_BBG" != "true" ]] || verify_enabled CONFIG_BBG
