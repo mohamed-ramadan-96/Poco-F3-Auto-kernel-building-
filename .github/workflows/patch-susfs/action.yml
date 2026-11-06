@@ -164,7 +164,8 @@ runs:
         if: env.SUSFS_ENABLE == 'true' && env.SUSFS_SKIP != 'true'
         shell: bash
         run: |
-          cd $GITHUB_WORKSPACE/device_kernel/
+          set -Eeuo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel/"
 
           if [[ -z "${{ env.SUSFS_PATCH_FIXED }}" ]]; then
             echo "[-] You didn't provide any patch file."
@@ -175,16 +176,34 @@ runs:
             for i in "${!FIXED_LIST[@]}"; do
               echo "Patching -> ${FIXED_LIST[$i]}"
 
-              if [[ -z "${{ env.SUSFS_FOLDER_FIXED }}" ]]; then
-                cp NonGKI_Kernel_Patches/${FIXED_LIST[$i]}.patch ./
-
-              else
-                cp NonGKI_Kernel_Patches/"${{ env.SUSFS_FOLDER_FIXED }}"/${FIXED_LIST[$i]}.patch ./
-
+              PATCH_NAME="${FIXED_LIST[$i]}.patch"
+              if [[ -z "${PATCH_NAME%.patch}" || ! "$PATCH_NAME" =~ ^[A-Za-z0-9._-]+\.patch$ ]]; then
+                echo "::error::Invalid custom SUSFS patch name: ${FIXED_LIST[$i]}"
+                exit 1
               fi
 
-              patch -p1 < ${FIXED_LIST[$i]}.patch || true
-              echo "[+] Patching successful!"
+              if [[ -z "${{ env.SUSFS_FOLDER_FIXED }}" ]]; then
+                PATCH_SOURCE="NonGKI_Kernel_Patches/$PATCH_NAME"
+              else
+                PATCH_SOURCE="NonGKI_Kernel_Patches/${{ env.SUSFS_FOLDER_FIXED }}/$PATCH_NAME"
+              fi
+              if [[ ! -s "$PATCH_SOURCE" ]]; then
+                echo "::error::Custom SUSFS patch not found: $PATCH_SOURCE"
+                exit 1
+              fi
+              cp "$PATCH_SOURCE" ./
+
+              PATCH_LOG="custom-susfs-${FIXED_LIST[$i]}.log"
+              set +e
+              patch --batch --forward -p1 < "$PATCH_NAME" 2>&1 | tee "$PATCH_LOG"
+              PATCH_STATUS=${PIPESTATUS[0]}
+              set -e
+              if (( PATCH_STATUS != 0 )) || find . -type f -name '*.rej' -print -quit | grep -q .; then
+                echo "::error::Custom SUSFS patch failed: $PATCH_NAME"
+                exit 1
+              fi
+              find . -type f -name '*.orig' -delete
+              echo "[+] Custom patch applied successfully: $PATCH_NAME"
               echo "[+] =================================== "
             done
 
