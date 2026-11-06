@@ -23,8 +23,10 @@ runs:
           # installed later by the dedicated Set KernelSU step in this workflow.
           SUBMODULE_PATHS=()
           if [[ -f device_kernel/.gitmodules ]]; then
-            while IFS=' ' read -r key path; do
-              [[ -n "${key:-}" && -n "${path:-}" ]] || continue
+            while IFS= read -r entry; do
+              key="${entry%%=*}"
+              path="${entry#*=}"
+              [[ "$key" == submodule.*.path && "$key" != "$entry" ]] || continue
               section="${key%.path}"
               if git -C device_kernel config -f .gitmodules --get "${section}.url" >/dev/null 2>&1; then
                 SUBMODULE_PATHS+=("$path")
@@ -34,7 +36,14 @@ runs:
                 echo "::error::Submodule '$path' has no URL in .gitmodules."
                 exit 1
               fi
-            done < <(git -C device_kernel config -f .gitmodules --get-regexp '^submodule\\..*\\.path
+            done < <(git -C device_kernel config -f .gitmodules --list || true)
+          fi
+
+          if (( ${#SUBMODULE_PATHS[@]} > 0 )); then
+            git -C device_kernel submodule update --init --recursive -- "${SUBMODULE_PATHS[@]}"
+          else
+            echo "[+] No valid Git submodules to initialize."
+          fi
           echo "::endgroup::"
 
           ACTUAL_KERNEL_SHA="$(git -C device_kernel rev-parse HEAD)"
