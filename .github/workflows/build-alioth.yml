@@ -342,8 +342,12 @@ jobs:
           # BakaSU calls security_dump_masked_av, which is only built with CONFIG_AUDIT
           ./scripts/config --file "$D" --enable CONFIG_AUDIT
 
-          # SUSFS SUS_MAP and uname spoof
-          ./scripts/config --file "$D" --enable CONFIG_KSU_SUSFS_SUS_MAP --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+          # SUSFS SUS_MAP and uname spoof must follow the selected SUSFS option.
+          if [[ "${{ inputs.susfs }}" == "true" ]]; then
+            ./scripts/config --file "$D" --enable CONFIG_KSU_SUSFS_SUS_MAP --enable CONFIG_KSU_SUSFS_SPOOF_UNAME
+          else
+            ./scripts/config --file "$D" --disable CONFIG_KSU_SUSFS_SUS_MAP --disable CONFIG_KSU_SUSFS_SPOOF_UNAME
+          fi
 
           # Official LLVM is built without MLGO, so disable these flags.
           sed -i -e '/regalloc-enable-advisor/s/^/#/' -e '/enable-ml-inliner/s/^/#/' Makefile
@@ -533,7 +537,13 @@ jobs:
 
           if [[ "$WANT_DROIDSPACES" == "true" ]]; then
             test -s arch/arm64/configs/droidspaces.config || { echo "::error::Droidspaces config is missing."; exit 1; }
-            echo "[+] Verified Droidspaces config is present."
+            for symbol in CONFIG_NAMESPACES CONFIG_PID_NS CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_SECCOMP CONFIG_OVERLAY_FS CONFIG_VETH CONFIG_BRIDGE CONFIG_NETFILTER CONFIG_NF_CONNTRACK; do
+              if ! grep -qx "${symbol}=y" out/.config; then
+                echo "::error::Droidspaces was requested but ${symbol} is not enabled in out/.config."
+                exit 1
+              fi
+              echo "[+] Verified ${symbol}=y"
+            done
           fi
 
       - name: 🔩 Pack Process
