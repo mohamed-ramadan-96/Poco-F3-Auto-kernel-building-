@@ -72,7 +72,7 @@ while IFS= read -r f; do
     /^[[:space:]]*#[[:space:]]*if/ {
         if ($0 ~ /CONFIG_(KSU|NOMOUNT)/) {
             n++; ks[n] = 1; el[n] = 0
-            ie[n] = ($0 ~ /ifndef|![[:space:]]*defined|![[:space:]]*IS_ENABLED/) ? 1 : 0
+            ie[n] = ($0 ~ /^[[:space:]]*#[[:space:]]*ifndef/) || ($0 ~ /^[[:space:]]*#[[:space:]]*if[[:space:]]+![[:space:]]*(defined|IS_ENABLED)[[:space:]]*\([[:space:]]*CONFIG_(KSU|NOMOUNT)/) ? 1 : 0
             next
         }
         if (emitting()) print
