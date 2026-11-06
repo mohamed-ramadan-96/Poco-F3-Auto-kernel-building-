@@ -40,7 +40,7 @@ analyze_errors() {
         else
 
             if [[ "$processing_error" == true ]]; then
-                process_error_block "${current_error_lines[@]}" "$error_count"
+                process_error_block "$error_count" "${current_error_lines[@]}"
                 processing_error=false
                 current_error_lines=()
             fi
@@ -48,7 +48,7 @@ analyze_errors() {
     done < "$log_file"
 
     if [[ "$processing_error" == true ]]; then
-        process_error_block "${current_error_lines[@]}" "$error_count"
+        process_error_block "$error_count" "${current_error_lines[@]}"
     fi
 
     print_separator
