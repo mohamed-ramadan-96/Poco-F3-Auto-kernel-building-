@@ -62,7 +62,7 @@ runs:
           fi
 
       - name: Free Disk Space (Ubuntu)
-        if: env.FREE_MORE_SPACE == 'true' && env.SYSTEM_VERSION == 'newer' || env.SYSTEM_VERSION == 'older'
+        if: env.FREE_MORE_SPACE == 'true' && (env.SYSTEM_VERSION == 'newer' || env.SYSTEM_VERSION == 'older')
         uses: jlumbroso/free-disk-space@main
         with:
           # this might remove tools that are actually needed,
@@ -400,7 +400,7 @@ runs:
         run: |
           if [ "${{ env.SYSTEM_VERSION }}" == "latest" ] || [ "${{ env.SYSTEM_VERSION }}" == "newer" ] || [ "${{ env.SYSTEM_VERSION }}" == "older" ] || [ "${{ env.SYSTEM_VERSION }}" == "oldest" ]; then
             echo "::group::[+] Starting install GNU GCC..."
-            sudo apt install binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu
+            sudo apt install binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu -y
             sudo apt install gcc-arm-linux-gnueabi -y
 
             echo "GCC_64=CROSS_COMPILE=aarch64-linux-gnu-" >> $GITHUB_ENV
@@ -409,7 +409,7 @@ runs:
             echo "::endgroup::"
             echo "[+] Get GNU GCC successfully."
 
-          elif [ "${{ env.SYSTEM_VERSION }}" == "arch" }} ]; then
+          elif [ "${{ env.SYSTEM_VERSION }}" == "arch" ]; then
             echo "::group::[+] Starting install GNU GCC..."
             pacman -S aarch64-linux-gnu-binutils aarch64-linux-gnu-gcc aarch64-linux-gnu-linux-api-headers aarch64-linux-gnu-glibc --noconfirm
             pacman -S arm-linux-gnueabihf-binutils arm-linux-gnueabihf-gcc arm-linux-gnueabihf-linux-api-headers arm-linux-gnueabihf-glibc --noconfirm
