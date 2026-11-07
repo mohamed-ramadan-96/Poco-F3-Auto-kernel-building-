@@ -79,6 +79,7 @@ jobs:
           KONA_DTB="$(find out/arch/arm64/boot/dts -type f -name kona.dtb -print -quit)"
           test -n "$KONA_DTB"
           test -s "$KONA_DTB"
+          KONA_DTB="$(realpath "$KONA_DTB")"
           echo "KONA_DTB=$KONA_DTB" >> "$GITHUB_ENV"
 
       - name: Create original and 5k DTBO images
