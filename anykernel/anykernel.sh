@@ -69,8 +69,6 @@ choose_battery_variant() {
 ### Install
 choose_battery_variant;
 
-set_perm_recursive 0 0 750 750 "$RAMDISK"/*;
-
 dump_boot;
 
 # Remove stale overlay directory before repacking the boot ramdisk.
