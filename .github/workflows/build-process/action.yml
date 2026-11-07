@@ -40,6 +40,23 @@ runs:
           : > "$GITHUB_WORKSPACE/device_kernel/error.log"
           exec > >(tee -a "$GITHUB_WORKSPACE/device_kernel/error.log") 2>&1
 
+          # The workflow must not rewrite the kernel tree's top-level Makefile.
+          # Restore it from the checked-out source if an earlier preparation step changed it.
+          if git ls-files --error-unmatch -- Makefile >/dev/null 2>&1; then
+            if ! git diff --quiet HEAD -- Makefile; then
+              echo "::warning::Top-level Makefile was modified before compilation; showing the diff and restoring the source version."
+              git --no-pager diff HEAD -- Makefile
+              git checkout HEAD -- Makefile
+            fi
+            if ! git diff --quiet HEAD -- Makefile; then
+              echo "::error::Could not restore the top-level Makefile to the checked-out source version."
+              exit 1
+            fi
+          else
+            echo "::error::Top-level Makefile is not tracked in the kernel source checkout."
+            exit 1
+          fi
+
           # Ubuntu 26.04 uses its native LLD to avoid legacy libxml2.so.2 dependencies.
           LD_ARGS=()
           if [[ -n "${BUILD_LD:-}" ]]; then
