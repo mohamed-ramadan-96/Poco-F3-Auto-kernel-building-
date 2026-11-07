@@ -30,6 +30,8 @@ jobs:
     steps:
       - name: Checkout workflow repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Install build dependencies
         run: |
@@ -152,7 +154,15 @@ jobs:
           cp "$KONA_DTB" "$PACKAGE/5k/dtb"
           cp "$RUNNER_TEMP/dtbo/5k.img" "$PACKAGE/5k/dtbo.img"
 
-          cp anykernel/anykernel.sh "$PACKAGE/anykernel.sh"
+          CUSTOM_AK_SCRIPT="$GITHUB_WORKSPACE/anykernel/anykernel.sh"
+          if [ ! -s "$CUSTOM_AK_SCRIPT" ]; then
+            echo "ERROR: Custom AnyKernel script is missing: $CUSTOM_AK_SCRIPT"
+            echo "Workspace contents:"
+            find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -print | sort
+            exit 1
+          fi
+          cp -f "$CUSTOM_AK_SCRIPT" "$PACKAGE/anykernel.sh"
+          cmp -s "$CUSTOM_AK_SCRIPT" "$PACKAGE/anykernel.sh"
 
           cmp "$PACKAGE/dtb" "$PACKAGE/5k/dtb"
           test -s "$PACKAGE/Image"
