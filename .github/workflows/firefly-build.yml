@@ -1,0 +1,538 @@
+name: Build Firefly Kernel for Poco F3 (alioth)
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_name:
+        description: ZIP name without .zip
+        type: string
+        default: Firefly-alioth
+        required: true
+      kernel_version_suffix:
+        description: CONFIG_LOCALVERSION suffix
+        type: string
+        default: -Firefly
+        required: true
+      nomount:
+        description: Integrate NoMount into the kernel
+        type: boolean
+        default: false
+      bbg:
+        description: Integrate Baseband Guard as an LSM
+        type: boolean
+        default: false
+      rekernel:
+        description: Integrate Re-Kernel Binder and Signal reporting
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firefly-alioth-build
+  cancel-in-progress: true
+
+env:
+  KERNEL_REPO: https://github.com/IzumiYouka/kernel_xiaomi_sm8250-firefly.git
+  KERNEL_BRANCH: celestia
+  KERNEL_ARCH: arm64
+  DEFCONFIG: vendor/alioth_defconfig
+  CLANG_VERSION: 19.1.7
+  ANYKERNEL_REPO: https://github.com/IzumiYouka/AnyKernel3.git
+  ANYKERNEL_COMMIT: dca9dc370838d919d56c1f59ec78b27a14a72c68
+
+jobs:
+  build:
+    name: Firefly / alioth / Clang 19.1.7
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi git libelf-dev \
+            libssl-dev lz4 make python3 python3-pip rsync unzip zip \
+            device-tree-compiler zstd gawk
+
+      - name: Resolve and fetch Firefly source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-remote --exit-code "$KERNEL_REPO" "refs/heads/$KERNEL_BRANCH" > /tmp/kernel-ref.txt
+          KERNEL_SHA="$(awk 'NR == 1 {print $1}' /tmp/kernel-ref.txt)"
+          [[ "$KERNEL_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Could not resolve Firefly celestia commit."
+            exit 1
+          }
+          git clone --depth=1 --branch "$KERNEL_BRANCH" "$KERNEL_REPO" device_kernel
+          ACTUAL_SHA="$(git -C device_kernel rev-parse HEAD)"
+          [[ "$ACTUAL_SHA" == "$KERNEL_SHA" ]] || {
+            echo "::error::Kernel source changed during checkout."
+            exit 1
+          }
+          echo "KERNEL_SOURCE_SHA=$ACTUAL_SHA" >> "$GITHUB_ENV"
+          echo "[+] Firefly source: $ACTUAL_SHA"
+          test -s device_kernel/Makefile
+          test -s "device_kernel/arch/arm64/configs/$DEFCONFIG"
+          test -s device_kernel/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+
+      - name: Install pinned Clang toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/clang"
+          curl -fL --retry 3 \
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-$CLANG_VERSION/LLVM-$CLANG_VERSION-Linux-X64.tar.xz" \
+            -o "$RUNNER_TEMP/clang.tar.xz"
+          tar -xJf "$RUNNER_TEMP/clang.tar.xz" --strip-components=1 -C "$GITHUB_WORKSPACE/clang"
+          echo "$GITHUB_WORKSPACE/clang/bin" >> "$GITHUB_PATH"
+          "$GITHUB_WORKSPACE/clang/bin/clang" --version
+          "$GITHUB_WORKSPACE/clang/bin/ld.lld" --version
+
+      - name: Install KernelSU (BakaSU)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          rm -rf KernelSU
+          rm -f drivers/kernelsu
+          curl -fsSL \
+            https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh \
+            | bash -s main
+          if [[ ! -s drivers/kernelsu/Kconfig ]]; then
+            echo "::error::BakaSU setup did not provide drivers/kernelsu/Kconfig."
+            exit 1
+          fi
+
+          # Firefly 4.19 needs these BakaSU SELinux symbols visible across translation units.
+          SELINUXFS="security/selinux/selinuxfs.c"
+          grep -q '^static const struct file_operations sel_handle_status_ops' "$SELINUXFS" || {
+            echo "::error::Expected sel_handle_status_ops declaration was not found."
+            exit 1
+          }
+          grep -q '^static ssize_t (\*const write_op\[\])(' "$SELINUXFS" || {
+            echo "::error::Expected write_op declaration was not found."
+            exit 1
+          }
+          sed -i 's/^static const struct file_operations sel_handle_status_ops/const struct file_operations sel_handle_status_ops/' "$SELINUXFS"
+          sed -i 's/^static ssize_t (\*const write_op\[\])(/ssize_t (*const write_op[])(/' "$SELINUXFS"
+
+          DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
+          ./scripts/config --file "$DEFCONFIG_FILE" --enable CONFIG_KSU
+          grep -q '^CONFIG_KSU=y$' "$DEFCONFIG_FILE" || {
+            echo "::error::CONFIG_KSU was not enabled in alioth_defconfig."
+            exit 1
+          }
+
+      - name: Integrate optional kernel features (NoMount / Baseband Guard / Re-Kernel)
+        shell: bash
+        env:
+          NOMOUNT_ENABLED: ${{ inputs.nomount }}
+          BBG_ENABLED: ${{ inputs.bbg }}
+          REKERNEL_ENABLED: ${{ inputs.rekernel }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
+
+          if [[ "$NOMOUNT_ENABLED" == "true" ]]; then
+            NOMOUNT_COMMIT=775827a14a76ebff4b14b3c7da07ccd67b701b9e
+            curl -fsSL "https://raw.githubusercontent.com/maxsteeel/nomount/$NOMOUNT_COMMIT/kernel/setup.sh" -o /tmp/nomount-setup.sh
+            bash /tmp/nomount-setup.sh "$NOMOUNT_COMMIT"
+            [[ -L fs/nomount && -s fs/nomount/Kconfig ]] || {
+              echo "::error::NoMount source link or Kconfig is missing after setup."
+              exit 1
+            }
+            grep -Fq 'obj-$(CONFIG_NOMOUNT) += nomount/' fs/Makefile || {
+              echo "::error::NoMount fs/Makefile integration is missing."
+              exit 1
+            }
+            grep -Fq 'source "fs/nomount/Kconfig"' fs/Kconfig || {
+              echo "::error::NoMount fs/Kconfig integration is missing."
+              exit 1
+            }
+            ./scripts/config --file "$DEFCONFIG_FILE" --enable CONFIG_NOMOUNT
+            echo "[+] NoMount pinned to $NOMOUNT_COMMIT and enabled."
+          fi
+
+          if [[ "$BBG_ENABLED" == "true" ]]; then
+            BBG_COMMIT=028ff7fd509e2104596da7cc1ef8e6ce2a0c9082
+            sudo ln -sfn /usr/bin/gawk /usr/local/bin/awk
+            awk --version | head -n 1
+            git clone --depth=1 https://github.com/vc-teahouse/Baseband-guard.git Baseband-guard
+            git -C Baseband-guard fetch --depth=1 origin "$BBG_COMMIT"
+            git -C Baseband-guard checkout --detach "$BBG_COMMIT"
+            curl -fsSL "https://raw.githubusercontent.com/vc-teahouse/Baseband-guard/$BBG_COMMIT/setup.sh" -o /tmp/bbg-setup.sh
+            bash /tmp/bbg-setup.sh "$BBG_COMMIT"
+            [[ -L security/baseband-guard && -s security/baseband-guard/Kconfig ]] || {
+              echo "::error::Baseband Guard source link or Kconfig is missing after setup."
+              exit 1
+            }
+            grep -q 'DEFINE_LSM' include/linux/lsm_hooks.h || {
+              echo "::error::Firefly LSM infrastructure marker is missing."
+              exit 1
+            }
+            ./scripts/config --file "$DEFCONFIG_FILE" --enable CONFIG_BBG
+            python3 - "$DEFCONFIG_FILE" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          lines = path.read_text().splitlines()
+          indexes = [i for i, line in enumerate(lines) if line.startswith("CONFIG_LSM=")]
+          if len(indexes) != 1:
+              raise SystemExit("Expected exactly one CONFIG_LSM string in alioth_defconfig.")
+          index = indexes[0]
+          current = lines[index].split("=", 1)[1].strip().strip('"')
+          entries = [entry.strip() for entry in current.split(",") if entry.strip()]
+          if "baseband_guard" not in entries:
+              entries.append("baseband_guard")
+          lines[index] = 'CONFIG_LSM="' + ",".join(entries) + '"'
+          path.write_text("\n".join(lines) + "\n")
+          print("[+] Added baseband_guard while preserving the existing LSM order.")
+          PY
+            echo "[+] Baseband Guard pinned to $BBG_COMMIT; boot-blocking mode remains disabled."
+          fi
+
+          if [[ "$REKERNEL_ENABLED" == "true" ]]; then
+            REKERNEL_PATCH="$GITHUB_WORKSPACE/Patches/Rekernel/rekernel_extra.patch"
+            [[ -s "$REKERNEL_PATCH" ]] || {
+              echo "::error::Re-Kernel source patch is missing from the workflow repository."
+              exit 1
+            }
+            git apply --check "$REKERNEL_PATCH"
+            git apply "$REKERNEL_PATCH"
+
+            python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one anchor, found {count}")
+              path.write_text(text.replace(old, new, 1))
+
+          net_kconfig = Path("drivers/net/Kconfig")
+          lines = net_kconfig.read_text().splitlines()
+          source_line = 'source "drivers/net/rekernel/Kconfig"'
+          if source_line not in lines:
+              endmenus = [i for i, line in enumerate(lines) if line.strip().startswith("endif")]
+              if not endmenus:
+                  raise SystemExit("drivers/net/Kconfig: no closing endif for Re-Kernel insertion")
+              lines.insert(endmenus[-1], source_line)
+              net_kconfig.write_text("\n".join(lines) + "\n")
+
+          net_makefile = Path("drivers/net/Makefile")
+          make_line = "obj-$(CONFIG_REKERNEL) += rekernel/"
+          if make_line not in net_makefile.read_text().splitlines():
+              with net_makefile.open("a") as stream:
+                  stream.write("\n" + make_line + "\n")
+
+          binder = Path("drivers/android/binder.c")
+          replace_once(
+              binder,
+              "#include <uapi/linux/android/binder.h>\n",
+              "#include <uapi/linux/android/binder.h>\n#ifdef CONFIG_REKERNEL\n#include <net/rekernel.h>\n#endif /* CONFIG_REKERNEL */\n",
+              "binder include"
+          )
+          replace_once(
+              binder,
+              "\t\ttarget_proc = target_thread->proc;\n\t\ttarget_proc->tmp_ref++;\n\t\tbinder_inner_proc_unlock(target_thread->proc);",
+              "\t\ttarget_proc = target_thread->proc;\n\t\ttarget_proc->tmp_ref++;\n#ifdef CONFIG_REKERNEL\n\t\tif (proc->tsk && target_proc->tsk)\n\t\t\trekernel_report(BINDER, REPLY, proc->pid, proc->tsk,\n\t\t\t\t\t target_proc->pid, target_proc->tsk, false, NULL, 0);\n#endif /* CONFIG_REKERNEL */\n\t\tbinder_inner_proc_unlock(target_thread->proc);",
+              "binder reply callsite"
+          )
+          replace_once(
+              binder,
+              "#endif\n\n\t\tif (WARN_ON(proc == target_proc)) {",
+              "#endif\n#ifdef CONFIG_REKERNEL\n\t\tif (proc->tsk && target_proc->tsk)\n\t\t\trekernel_report(BINDER, TRANSACTION, proc->pid, proc->tsk,\n\t\t\t\t\t target_proc->pid, target_proc->tsk,\n\t\t\t\t\t !!(tr->flags & TF_ONE_WAY), NULL, tr->code);\n#endif /* CONFIG_REKERNEL */\n\n\t\tif (WARN_ON(proc == target_proc)) {",
+              "binder transaction callsite"
+          )
+
+          signal = Path("kernel/signal.c")
+          replace_once(
+              signal,
+              '#include <asm/cacheflush.h>\n',
+              '#include <asm/cacheflush.h>\n#ifdef CONFIG_REKERNEL\n#include <net/rekernel.h>\n#endif /* CONFIG_REKERNEL */\n',
+              "signal include"
+          )
+          replace_once(
+              signal,
+              "\tint ret = -ESRCH;\n\n\tif (lock_task_sighand(p, &flags)) {",
+              "\tint ret = -ESRCH;\n#ifdef CONFIG_REKERNEL\n\tif (sig == SIGKILL || sig == SIGTERM || sig == SIGABRT || sig == SIGQUIT)\n\t\trekernel_report(SIGNAL, sig, task_tgid_nr(current), current,\n\t\t\t\t\t task_tgid_nr(p), p, false, NULL, 0);\n#endif /* CONFIG_REKERNEL */\n\n\tif (lock_task_sighand(p, &flags)) {",
+              "signal reporting callsite"
+          )
+          print("[+] Re-Kernel Binder reply/transaction and Signal callsites inserted.")
+          PY
+
+            ./scripts/config --file "$DEFCONFIG_FILE" --enable CONFIG_REKERNEL
+            grep -q '^CONFIG_REKERNEL=y$' "$DEFCONFIG_FILE" || {
+              echo "::error::CONFIG_REKERNEL was not enabled in alioth_defconfig."
+              exit 1
+            }
+            [[ -s drivers/net/rekernel/rekernel.c && -s include/net/rekernel.h ]] || {
+              echo "::error::Re-Kernel module files are incomplete."
+              exit 1
+            }
+            echo "[+] Re-Kernel integration and Binder/Signal callsites are installed."
+          fi
+
+          # Ignore historical tracked rejects; fail on new or modified patch residue.
+          while IFS= read -r -d '' file; do
+            if git ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+              if ! git diff --quiet HEAD -- "$file" || ! git diff --cached --quiet -- "$file"; then
+                echo "::error::Tracked patch residue changed: $file"
+                exit 1
+              fi
+            else
+              echo "::error::New patch residue detected: $file"
+              exit 1
+            fi
+          done < <(find . -type f \( -name '*.rej' -o -name '*.orig' \) -print0)
+
+          echo "[+] Optional feature integration checks passed."
+
+      - name: Configure kernel
+        shell: bash
+        env:
+          KERNEL_VERSION_SUFFIX: ${{ inputs.kernel_version_suffix }}
+          NOMOUNT_ENABLED: ${{ inputs.nomount }}
+          BBG_ENABLED: ${{ inputs.bbg }}
+          REKERNEL_ENABLED: ${{ inputs.rekernel }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
+          if [[ "$KERNEL_VERSION_SUFFIX" == *$'\n'* || "$KERNEL_VERSION_SUFFIX" == *$'\r'* || "$KERNEL_VERSION_SUFFIX" == *'"'* ]]; then
+            echo "::error::Invalid kernel version suffix."
+            exit 1
+          fi
+          ./scripts/config --file "$DEFCONFIG_FILE" --set-str CONFIG_LOCALVERSION "$KERNEL_VERSION_SUFFIX"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            "$DEFCONFIG"
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+          grep -qx 'CONFIG_KSU=y' out/.config || {
+            echo "::error::CONFIG_KSU=y is missing from the resolved kernel config."
+            exit 1
+          }
+          grep -qx 'CONFIG_BUILD_ARM64_DT_OVERLAY=y' out/.config || {
+            echo "::error::CONFIG_BUILD_ARM64_DT_OVERLAY=y is required to create the alioth DTBO image."
+            exit 1
+          }
+          grep -qx 'CONFIG_ARCH_KONA=y' out/.config || {
+            echo "::error::CONFIG_ARCH_KONA=y is required for the SM8250 device trees."
+            exit 1
+          }
+          if [[ "$NOMOUNT_ENABLED" == "true" ]]; then
+            grep -qx 'CONFIG_NOMOUNT=y' out/.config || {
+              echo "::error::NoMount was selected but CONFIG_NOMOUNT=y is absent."
+              exit 1
+            }
+          fi
+          if [[ "$BBG_ENABLED" == "true" ]]; then
+            grep -qx 'CONFIG_BBG=y' out/.config || {
+              echo "::error::Baseband Guard was selected but CONFIG_BBG=y is absent."
+              exit 1
+            }
+            grep -q '^CONFIG_LSM=.*baseband_guard' out/.config || {
+              echo "::error::baseband_guard is missing from final CONFIG_LSM."
+              exit 1
+            }
+          fi
+          if [[ "$REKERNEL_ENABLED" == "true" ]]; then
+            grep -qx 'CONFIG_REKERNEL=y' out/.config || {
+              echo "::error::Re-Kernel was selected but CONFIG_REKERNEL=y is absent."
+              exit 1
+            }
+            grep -q 'rekernel_report(BINDER, REPLY' drivers/android/binder.c || exit 1
+            grep -q 'rekernel_report(BINDER, TRANSACTION' drivers/android/binder.c || exit 1
+            grep -q 'rekernel_report(SIGNAL' kernel/signal.c || exit 1
+          fi
+
+      - name: Build kernel image and device trees
+        shell: bash
+        env:
+          BBG_ENABLED: ${{ inputs.bbg }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          if [[ "$BBG_ENABLED" == "true" ]]; then
+            make -j"$(nproc)" O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- security/selinux/
+          fi
+          make -j"$(nproc)" O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image dtbo.img
+          IMAGE="out/arch/arm64/boot/Image"
+          [[ -s "$IMAGE" ]] || {
+            echo "::error::Kernel Image was not generated."
+            exit 1
+          }
+          echo "[+] Kernel Image size: $(stat -c%s "$IMAGE") bytes"
+
+      - name: Build both alioth battery DTBO variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+
+          DTSI="arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi"
+          cp "$DTSI" "$RUNNER_TEMP/alioth-sm8250.dtsi.original"
+
+          DTS_ROOT="out/arch/arm64/boot/dts/vendor/qcom"
+          BASE_DTB="$DTS_ROOT/kona.dtb"
+          DTBO_IMAGE="out/arch/arm64/boot/dtbo.img"
+          [[ -s "$BASE_DTB" && -s "$DTBO_IMAGE" ]] || {
+            echo "::error::Kernel build did not produce kona.dtb and the complete dtbo.img."
+            find "$DTS_ROOT" -maxdepth 1 -type f -name '*.dtb' -print
+            find out/arch/arm64/boot -maxdepth 1 -type f -name 'dtbo.img' -print
+            exit 1
+          }
+
+          mkdir -p "$GITHUB_WORKSPACE/package/5k"
+          cp "$BASE_DTB" "$GITHUB_WORKSPACE/package/5k/dtb"
+          cp "$DTBO_IMAGE" "$GITHUB_WORKSPACE/package/5k/dtbo.img"
+
+          # Stock 4520mAh profile excludes Apollo's 5000mAh battery-data include.
+          sed -i '/fg-gen4-batterydata-apollo-sun-5000mah.dtsi/d' "$DTSI"
+          make -j"$(nproc)" O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- dtbo.img
+
+          [[ -s "$DTBO_IMAGE" ]] || {
+            echo "::error::Stock-battery dtbo.img was not generated."
+            exit 1
+          }
+          cp "$BASE_DTB" "$GITHUB_WORKSPACE/package/dtb"
+          cp "$DTBO_IMAGE" "$GITHUB_WORKSPACE/package/dtbo.img"
+
+          cp "$RUNNER_TEMP/alioth-sm8250.dtsi.original" "$DTSI"
+          cmp -s "$GITHUB_WORKSPACE/package/dtb" "$GITHUB_WORKSPACE/package/5k/dtb" || {
+            echo "::error::Battery variants unexpectedly produced different base DTBs."
+            exit 1
+          }
+          if cmp -s "$GITHUB_WORKSPACE/package/dtbo.img" "$GITHUB_WORKSPACE/package/5k/dtbo.img"; then
+            echo "::error::Stock and Apollo battery DTBO images are identical; battery include change did not take effect."
+            exit 1
+          fi
+          echo "[+] Built complete DTBO images for both battery profiles."
+          
+      - name: Prepare Firefly AnyKernel3 package
+        shell: bash
+        env:
+          ZIP_NAME: ${{ inputs.zip_name }}
+        run: |
+          set -euo pipefail
+          [[ "$ZIP_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || {
+            echo "::error::ZIP name may contain only letters, numbers, dot, underscore and dash."
+            exit 1
+          }
+          git clone --depth=1 --branch master "$ANYKERNEL_REPO" AnyKernel3
+          git -C AnyKernel3 checkout "$ANYKERNEL_COMMIT"
+          cp "$GITHUB_WORKSPACE/device_kernel/out/arch/arm64/boot/Image" AnyKernel3/Image
+          cp "$GITHUB_WORKSPACE/package/dtb" AnyKernel3/dtb
+          cp "$GITHUB_WORKSPACE/package/dtbo.img" AnyKernel3/dtbo.img
+          mkdir -p AnyKernel3/5k
+          cp "$GITHUB_WORKSPACE/package/5k/dtb" AnyKernel3/5k/dtb
+          cp "$GITHUB_WORKSPACE/package/5k/dtbo.img" AnyKernel3/5k/dtbo.img
+
+          cat > AnyKernel3/anykernel.sh <<'AK3'
+          # AnyKernel3 Ramdisk Mod Script
+          # osm0sis @ xda-developers
+
+          properties() { "
+          kernel.string=Fyreflies are such magical creatures, aren't?
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=alioth
+          device.name2=aliothin
+          device.name3=
+          device.name4=
+          "; }
+
+          block=/dev/block/bootdevice/by-name/boot;
+          is_slot_device=1;
+          ramdisk_compression=auto;
+
+          . tools/ak3-core.sh;
+
+          choose_battery_variant() {
+            ui_print "Battery variant selection:";
+            ui_print "  Vol Up   = Original battery / 4520mAh";
+            ui_print "  Vol Down = 5k battery / Apollo 5000mAh";
+
+            selected=""
+            ui_print "Waiting up to 10 seconds for volume key..."
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              key="$(timeout 1 getevent -ql 2>/dev/null | grep -m 1 -E 'KEY_VOLUMEUP.*DOWN|KEY_VOLUMEDOWN.*DOWN' || true)"
+              case "$key" in
+                *KEY_VOLUMEUP*) selected="stock"; break ;;
+                *KEY_VOLUMEDOWN*) selected="5k"; break ;;
+              esac
+            done
+
+            if [ -z "$selected" ]; then
+              if echo "${ZIPFILE:-}" | grep -qi 'j3s'; then
+                selected="5k"
+                ui_print "No key detected; ZIP filename selects Apollo 5000mAh."
+              else
+                selected="stock"
+                ui_print "No key detected; using original 4520mAh battery."
+              fi
+            fi
+
+            if [ "$selected" = "5k" ]; then
+              [ -s 5k/dtb ] || abort "Missing 5k/dtb."
+              [ -s 5k/dtbo.img ] || abort "Missing 5k/dtbo.img."
+              cp -f 5k/dtb dtb
+              cp -f 5k/dtbo.img dtbo.img
+              ui_print "Selected Apollo 5000mAh profile."
+            else
+              ui_print "Selected original 4520mAh profile."
+            fi
+          }
+
+          choose_battery_variant
+          dump_boot;
+          set_perm_recursive 0 0 750 750 "$ramdisk"/*;
+          if [ -d "$ramdisk/overlay" ]; then
+            rm -rf "$ramdisk/overlay";
+          fi;
+          write_boot;
+
+          # vendor_boot install — alioth only (skip for apollo)
+          if [ "$is_slot_device" = "1" ]; then
+            block=/dev/block/bootdevice/by-name/vendor_boot;
+            ramdisk_compression=auto;
+            patch_vbmeta_flag=auto;
+            reset_ak;
+            dump_boot;
+            write_boot;
+          fi
+          AK3
+
+          chmod 0755 AnyKernel3/anykernel.sh
+          rm -rf AnyKernel3/.git
+          cd AnyKernel3
+          zip -qr9 "$GITHUB_WORKSPACE/$ZIP_NAME.zip" .
+          cd "$GITHUB_WORKSPACE"
+          unzip -l "$ZIP_NAME.zip" | grep -E '(^|/)(Image|dtb|dtbo.img|anykernel.sh|ak3-core.sh|magiskboot)$|5k/'
+          test -s "$ZIP_NAME.zip"
+          echo "[+] Created $ZIP_NAME.zip ($(stat -c%s "$ZIP_NAME.zip") bytes)"
+
+      - name: Upload flashable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefly-alioth-kernel
+          path: ${{ inputs.zip_name }}.zip
+          if-no-files-found: error
+          compression-level: 0
