@@ -19,6 +19,8 @@ jobs:
     env:
       KERNEL_REPO: https://github.com/IzumiYouka/kernel_xiaomi_sm8250-firefly.git
       KERNEL_SHA: 04817225202677086d84f60ab24055592a3d976e
+      KSU_REPO: https://github.com/Baka-SU/BakaSU.git
+      KSU_SHA: 5785bdb8091304322f597f67d50e0b79f9815cb2
       ANYKERNEL_REPO: https://github.com/IzumiYouka/AnyKernel3.git
       ANYKERNEL_SHA: dca9dc370838d919d56c1f59ec78b27a14a72c68
       ARCH: arm64
@@ -43,6 +45,24 @@ jobs:
           git -C kernel fetch --depth=1 origin "$KERNEL_SHA"
           git -C kernel checkout --detach FETCH_HEAD
           test "$(git -C kernel rev-parse HEAD)" = "$KERNEL_SHA"
+
+      - name: Materialize pinned KernelSU gitlink
+        run: |
+          set -euo pipefail
+          # The Firefly tree records KernelSU as a gitlink but has no .gitmodules.
+          # Fetch the exact BakaSU repository commit recorded by that gitlink.
+          test ! -e kernel/.gitmodules
+          rm -rf kernel/KernelSU
+          git clone --no-checkout "$KSU_REPO" kernel/KernelSU
+          git -C kernel/KernelSU fetch --depth=1 origin "$KSU_SHA"
+          git -C kernel/KernelSU checkout --detach FETCH_HEAD
+          test "$(git -C kernel/KernelSU rev-parse HEAD)" = "$KSU_SHA"
+          test -s kernel/KernelSU/kernel/Kconfig
+          test -s kernel/KernelSU/kernel/Makefile
+          test -L kernel/drivers/kernelsu
+          test "$(readlink kernel/drivers/kernelsu)" = "../KernelSU/kernel"
+          test -s kernel/drivers/kernelsu/Kconfig
+          echo "Verified pinned BakaSU gitlink and drivers/kernelsu symlink."
 
       - name: Install source-matched Android Clang
         run: |
