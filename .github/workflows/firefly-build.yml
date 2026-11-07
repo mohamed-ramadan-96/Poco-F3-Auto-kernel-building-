@@ -1,0 +1,17 @@
+name: Firefly Kernel Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-registration:
+    name: Dispatch registration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain branch selection
+        run: |
+          echo "This is the default-branch registration for manual dispatch."
+          echo "Select the firefly-clean branch when starting the Firefly build."
