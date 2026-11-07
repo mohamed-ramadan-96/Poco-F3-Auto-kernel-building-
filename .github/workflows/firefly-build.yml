@@ -21,8 +21,8 @@ jobs:
       KERNEL_SHA: 04817225202677086d84f60ab24055592a3d976e
       KSU_REPO: https://github.com/Baka-SU/BakaSU.git
       KSU_SHA: 5785bdb8091304322f597f67d50e0b79f9815cb2
-      ANYKERNEL_REPO: https://github.com/IzumiYouka/AnyKernel3.git
-      ANYKERNEL_SHA: dca9dc370838d919d56c1f59ec78b27a14a72c68
+      ANYKERNEL_REPO: https://github.com/mohamed-ramadan-96/AnyKernel3.git
+      ANYKERNEL_SHA: 5cbdda3c6e5a40723f1e11379e3493a8fd3cb6e1
       ARCH: arm64
       LLVM: "1"
       LLVM_IAS: "1"
@@ -154,20 +154,12 @@ jobs:
           cp "$KONA_DTB" "$PACKAGE/5k/dtb"
           cp "$RUNNER_TEMP/dtbo/5k.img" "$PACKAGE/5k/dtbo.img"
 
-          CUSTOM_AK_SCRIPT="$GITHUB_WORKSPACE/anykernel/anykernel.sh"
-          if [ ! -s "$CUSTOM_AK_SCRIPT" ]; then
-            echo "ERROR: Custom AnyKernel script is missing: $CUSTOM_AK_SCRIPT"
-            echo "Workspace contents:"
-            find "$GITHUB_WORKSPACE" -maxdepth 3 -type f -print | sort
-            exit 1
-          fi
-          cp -f "$CUSTOM_AK_SCRIPT" "$PACKAGE/anykernel.sh"
-          cmp -s "$CUSTOM_AK_SCRIPT" "$PACKAGE/anykernel.sh"
 
           cmp "$PACKAGE/dtb" "$PACKAGE/5k/dtb"
           test -s "$PACKAGE/Image"
           test -s "$PACKAGE/dtbo.img"
           test -s "$PACKAGE/5k/dtbo.img"
+          test -s "$PACKAGE/anykernel.sh"
           test -s "$PACKAGE/tools/ak3-core.sh"
           test -d "$PACKAGE/META-INF"
 
