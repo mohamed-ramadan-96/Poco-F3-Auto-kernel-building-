@@ -1,0 +1,158 @@
+name: Firefly Kernel Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firefly-clean-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build alioth kernel and AnyKernel3 package
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+
+    env:
+      KERNEL_REPO: https://github.com/IzumiYouka/kernel_xiaomi_sm8250-firefly.git
+      KERNEL_SHA: 04817225202677086d84f60ab24055592a3d976e
+      ANYKERNEL_REPO: https://github.com/IzumiYouka/AnyKernel3.git
+      ANYKERNEL_SHA: dca9dc370838d919d56c1f59ec78b27a14a72c68
+      ARCH: arm64
+      LLVM: "1"
+      LLVM_IAS: "1"
+
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential cpio curl device-tree-compiler flex \
+            git libelf-dev libncurses-dev libssl-dev lz4 python3 rsync \
+            unzip zip
+
+      - name: Fetch kernel source
+        run: |
+          git clone --no-checkout "$KERNEL_REPO" kernel
+          git -C kernel fetch --depth=1 origin "$KERNEL_SHA"
+          git -C kernel checkout --detach FETCH_HEAD
+          test "$(git -C kernel rev-parse HEAD)" = "$KERNEL_SHA"
+
+      - name: Install source-matched Android Clang
+        run: |
+          mkdir -p "$RUNNER_TEMP/clang"
+          curl -fL --retry 3 \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-r416183b.tar.gz" \
+            -o "$RUNNER_TEMP/clang.tar.gz"
+          tar -xzf "$RUNNER_TEMP/clang.tar.gz" -C "$RUNNER_TEMP/clang"
+          echo "$RUNNER_TEMP/clang/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/clang/bin/clang" --version
+
+      - name: Configure alioth
+        working-directory: kernel
+        run: |
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang vendor/alioth_defconfig
+
+          test -s out/.config
+          grep -q '^CONFIG_ARCH_KONA=y$' out/.config
+          grep -q '^CONFIG_MACH_XIAOMI=y$' out/.config
+          grep -q '^CONFIG_MACH_XIAOMI_SM8250=y$' out/.config
+          grep -q '^CONFIG_MACH_XIAOMI_ALIOTH=y$' out/.config
+          grep -q '^CONFIG_BUILD_ARM64_DT_OVERLAY=y$' out/.config
+
+          echo "Verified alioth defconfig and DT overlay support."
+
+      - name: Build kernel and device trees
+        working-directory: kernel
+        run: |
+          make -j"$(nproc)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang Image dtbs
+
+          test -s out/arch/arm64/boot/Image
+          test -s out/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250-overlay.dtbo
+
+          KONA_DTB="$(find out/arch/arm64/boot/dts -type f -name kona.dtb -print -quit)"
+          test -n "$KONA_DTB"
+          test -s "$KONA_DTB"
+          echo "KONA_DTB=$KONA_DTB" >> "$GITHUB_ENV"
+
+      - name: Create original and 5k DTBO images
+        working-directory: kernel
+        run: |
+          MKDTBO=scripts/ufdt/libufdt/utils/src/mkdtboimg.py
+          ALIOTH_DTBO=out/arch/arm64/boot/dts/vendor/qcom/alioth-sm8250-overlay.dtbo
+
+          mkdir -p "$RUNNER_TEMP/dtbo"
+          cp "$ALIOTH_DTBO" "$RUNNER_TEMP/dtbo/alioth-original.dtbo"
+
+          python3 "$MKDTBO" create "$RUNNER_TEMP/dtbo/original.img" \
+            --page_size=4096 "$RUNNER_TEMP/dtbo/alioth-original.dtbo"
+
+          # The alioth profile defaults to k11a (4520mAh). For the Apollo
+          # 5000mAh variant, switch only the fuel-gauge profile flag to j3s.
+          grep -q 'qcom,k11a-batt-profile;' arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+          sed -i 's/qcom,k11a-batt-profile;/qcom,j3s-batt-profile;/' \
+            arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+          grep -q 'qcom,j3s-batt-profile;' arch/arm64/boot/dts/vendor/qcom/alioth-sm8250.dtsi
+
+          make -j"$(nproc)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang dtbs
+
+          cp "$ALIOTH_DTBO" "$RUNNER_TEMP/dtbo/alioth-5k.dtbo"
+          python3 "$MKDTBO" create "$RUNNER_TEMP/dtbo/5k.img" \
+            --page_size=4096 "$RUNNER_TEMP/dtbo/alioth-5k.dtbo"
+
+          ! cmp -s "$RUNNER_TEMP/dtbo/original.img" "$RUNNER_TEMP/dtbo/5k.img"
+
+      - name: Checkout AnyKernel3
+        run: |
+          git clone --no-checkout "$ANYKERNEL_REPO" anykernel3
+          git -C anykernel3 fetch --depth=1 origin "$ANYKERNEL_SHA"
+          git -C anykernel3 checkout --detach FETCH_HEAD
+          test "$(git -C anykernel3 rev-parse HEAD)" = "$ANYKERNEL_SHA"
+
+      - name: Assemble and verify AnyKernel3 ZIP
+        run: |
+          set -euo pipefail
+
+          PACKAGE="$RUNNER_TEMP/package"
+          mkdir -p "$PACKAGE/5k" dist
+          cp -a anykernel3/. "$PACKAGE/"
+          rm -rf "$PACKAGE/.git" "$PACKAGE/.github"
+
+          cp kernel/out/arch/arm64/boot/Image "$PACKAGE/Image"
+          cp "$KONA_DTB" "$PACKAGE/dtb"
+          cp "$RUNNER_TEMP/dtbo/original.img" "$PACKAGE/dtbo.img"
+
+          cp "$KONA_DTB" "$PACKAGE/5k/dtb"
+          cp "$RUNNER_TEMP/dtbo/5k.img" "$PACKAGE/5k/dtbo.img"
+
+          cp anykernel/anykernel.sh "$PACKAGE/anykernel.sh"
+
+          cmp "$PACKAGE/dtb" "$PACKAGE/5k/dtb"
+          test -s "$PACKAGE/Image"
+          test -s "$PACKAGE/dtbo.img"
+          test -s "$PACKAGE/5k/dtbo.img"
+          test -s "$PACKAGE/tools/ak3-core.sh"
+          test -d "$PACKAGE/META-INF"
+
+          (
+            cd "$PACKAGE"
+            zip -qr9 "$GITHUB_WORKSPACE/dist/Firefly-alioth-clean.zip" .
+          )
+
+          unzip -t dist/Firefly-alioth-clean.zip
+          unzip -l dist/Firefly-alioth-clean.zip
+          sha256sum dist/Firefly-alioth-clean.zip
+
+      - name: Upload flashable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefly-alioth-clean
+          path: dist/Firefly-alioth-clean.zip
+          if-no-files-found: error
+          compression-level: 0
