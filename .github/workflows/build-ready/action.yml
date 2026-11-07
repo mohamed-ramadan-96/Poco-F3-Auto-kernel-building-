@@ -182,7 +182,7 @@ runs:
           echo "[+] Cleaned hook."
 
       - name: Set KernelSU
-        if: env.KSU_PATCH != 'false'
+        # Ensure Firefly's KernelSU Kconfig dependency exists even when patching is disabled.
         shell: bash
         run: |
           set -eo pipefail
@@ -317,27 +317,31 @@ runs:
           }
 
 
-          # Core
-          if [[ ${{ env.KERNELSU_AUTO_GET }} == "true" ]]; then
-            KERNELSU_AUTO
-
+          # KSU_PATCH=OFF preserves existing hooks/source; it must not leave a dangling Kconfig dependency.
+          if [[ "${{ env.KSU_PATCH }}" == "false" && -s "drivers/kernelsu/Kconfig" ]]; then
+            echo "[+] Existing in-tree KernelSU driver found; leaving it unchanged because KSU_PATCH=false."
           else
-            KERNELSU_MANUAL
+            if [[ "${{ env.KSU_PATCH }}" == "false" ]]; then
+              echo "::notice::KernelSU driver is absent despite KSU_PATCH=false; installing the selected KSU source without running clean_hook."
+            fi
+            if [[ "${{ env.KERNELSU_AUTO_GET }}" == "true" ]]; then
+              KERNELSU_AUTO
+            else
+              KERNELSU_MANUAL
+            fi
+          fi
 
-          fi
           # Fail here with a precise diagnostic instead of letting Kconfig fail later.
-          if [[ "${{ env.KERNELSU_METHOD }}" == "shell" || "${{ env.KERNELSU_METHOD }}" == "manual" || "${{ env.KERNELSU_METHOD }}" == "only" ]]; then
-            if [[ ! -s "drivers/kernelsu/Kconfig" ]]; then
-              echo "::error::KernelSU setup did not provide drivers/kernelsu/Kconfig."
-              ls -ld KernelSU KernelSU-Next drivers/kernelsu 2>/dev/null || true
-              exit 1
-            fi
-            if ! grep -Eq 'obj-\$\(CONFIG_KSU\)[[:space:]]*\+=[[:space:]]*kernelsu/' drivers/Makefile; then
-              echo "::error::KernelSU source exists, but drivers/Makefile does not build kernelsu/."
-              exit 1
-            fi
-            echo "[+] Verified KernelSU Kconfig and driver Makefile integration."
+          if [[ ! -s "drivers/kernelsu/Kconfig" ]]; then
+            echo "::error::KernelSU setup did not provide drivers/kernelsu/Kconfig."
+            ls -ld KernelSU KernelSU-Next drivers/kernelsu 2>/dev/null || true
+            exit 1
           fi
+          if ! grep -Eq 'obj-\$\(CONFIG_KSU\)[[:space:]]*\+=[[:space:]]*kernelsu/' drivers/Makefile; then
+            echo "::error::KernelSU source exists, but drivers/Makefile does not build kernelsu/."
+            exit 1
+          fi
+          echo "[+] Verified KernelSU Kconfig and driver Makefile integration."
           echo "KERNELSU_METHOD=${{ env.KERNELSU_METHOD }}" >> $GITHUB_ENV
 
       - name: KPM Function Support
