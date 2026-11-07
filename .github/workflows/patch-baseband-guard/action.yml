@@ -49,7 +49,7 @@ runs:
 
           if (( ${#PATCH_REJECTS[@]} > 0 )); then
             echo "::error::Baseband Guard created or modified patch reject files; refusing to continue."
-            printf '[-] Patch reject: %s\\n' "${PATCH_REJECTS[@]}"
+            printf '[-] Patch reject: %s\n' "${PATCH_REJECTS[@]}"
             exit 1
           fi
           echo "[+] Patched Baseband Guard for your kernel successfully."
