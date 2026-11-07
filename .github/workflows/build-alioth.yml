@@ -538,6 +538,9 @@ jobs:
             echo "[+] Verified $symbol=y"
           }
 
+          # KernelSU is mandatory for this build: fail before packaging if it is absent.
+          verify_enabled CONFIG_KSU
+
           if [[ "$WANT_SUSFS" == "true" ]]; then
             verify_enabled CONFIG_KSU_SUSFS
             verify_enabled CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
