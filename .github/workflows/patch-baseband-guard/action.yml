@@ -34,9 +34,22 @@ runs:
 
           fi
 
-          if find . -type f -name '*.rej' -print -quit | grep -q .; then
-            echo "::error::Baseband Guard patch left .rej files; refusing to continue."
-            find . -type f -name '*.rej' -print
+          # Ignore historical .rej files tracked by the kernel source.
+          # Fail only when Baseband Guard creates a new reject or modifies an existing one.
+          PATCH_REJECTS=()
+          while IFS= read -r -d '' reject; do
+            if git ls-files --error-unmatch -- "$reject" >/dev/null 2>&1; then
+              if ! git diff --quiet HEAD -- "$reject" || ! git diff --cached --quiet -- "$reject"; then
+                PATCH_REJECTS+=("$reject")
+              fi
+            else
+              PATCH_REJECTS+=("$reject")
+            fi
+          done < <(find . -type f -name '*.rej' -print0)
+
+          if (( ${#PATCH_REJECTS[@]} > 0 )); then
+            echo "::error::Baseband Guard created or modified patch reject files; refusing to continue."
+            printf '[-] Patch reject: %s\\n' "${PATCH_REJECTS[@]}"
             exit 1
           fi
           echo "[+] Patched Baseband Guard for your kernel successfully."
