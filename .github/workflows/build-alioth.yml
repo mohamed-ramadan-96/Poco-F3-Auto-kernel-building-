@@ -402,12 +402,24 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/device_kernel"
 
-          # Any leftover reject/original files indicate a patch that needs review.
-          mapfile -t PATCH_ARTIFACTS < <(find . -type f \( -name '*.rej' -o -name '*.orig' \) -print)
+          # Fail only on patch artifacts created or modified during this run.
+          # Some kernel sources (including Firefly celestia) track historical .rej files.
+          mapfile -t ALL_PATCH_ARTIFACTS < <(find . -type f \( -name '*.rej' -o -name '*.orig' \) -print)
+          PATCH_ARTIFACTS=()
+          for artifact in "${ALL_PATCH_ARTIFACTS[@]}"; do
+            if git ls-files --error-unmatch -- "$artifact" >/dev/null 2>&1; then
+              if ! git diff --quiet -- "$artifact" || ! git diff --cached --quiet -- "$artifact"; then
+                PATCH_ARTIFACTS+=("$artifact")
+              fi
+            else
+              PATCH_ARTIFACTS+=("$artifact")
+            fi
+          done
+
           if (( ${#PATCH_ARTIFACTS[@]} > 0 )); then
             ARCHIVE="rej_files_audit_${GITHUB_RUN_ID:-local}.tar.gz"
             tar -czf "$ARCHIVE" -- "${PATCH_ARTIFACTS[@]}"
-            echo "::error::Patch residue detected; refusing to compile with rejected or backup files."
+            echo "::error::New or modified patch residue detected; refusing to compile."
             printf '[-] Patch residue: %s\n' "${PATCH_ARTIFACTS[@]}"
             echo "[+] Patch diagnostics saved to $ARCHIVE."
             exit 1
