@@ -40,7 +40,7 @@ runs:
           fi
 
           if (( ${#SUBMODULE_PATHS[@]} > 0 )); then
-            git -C device_kernel submodule update --init --recursive -- "${SUBMODULE_PATHS[@]}"
+            git -C device_kernel submodule update --init -- "${SUBMODULE_PATHS[@]}"
           else
             echo "[+] No valid Git submodules to initialize."
           fi
