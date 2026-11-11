@@ -217,7 +217,7 @@ jobs:
         uses: ./.github/workflows/build-ready
 
       - name: 📶 Patch NFC I2C write retry
-        if: \${{ inputs.nfc_i2c_retry }}
+        if: ${{ inputs.nfc_i2c_retry }}
         shell: bash
         run: |
           set -euo pipefail
