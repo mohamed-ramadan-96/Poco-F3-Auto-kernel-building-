@@ -17,7 +17,7 @@ index 0000000..0000000 100644
 -	ret = i2c_master_send(nqx_dev->client, tmp, count);
 -	if (ret != count) {
 -		dev_err(&nqx_dev->client->dev,
--		"%s: failed to write %d\\n", __func__, ret);
+-		"%s: failed to write %d\n", __func__, ret);
 -		ret = -EIO;
 +	for (retry_cnt = 0; retry_cnt < MAX_RETRY_COUNT; retry_cnt++) {
 +		ret = i2c_master_send(nqx_dev->client, tmp, count);
@@ -25,7 +25,7 @@ index 0000000..0000000 100644
 +			break;
 +
 +		dev_err(&nqx_dev->client->dev,
-+			"%s: I2C write attempt %d/%d failed (%d)\\n",
++			"%s: I2C write attempt %d/%d failed (%d)\n",
 +			__func__, retry_cnt + 1, MAX_RETRY_COUNT, ret);
 +		if (retry_cnt + 1 < MAX_RETRY_COUNT)
 +			usleep_range(10000, 11000);
@@ -35,7 +35,7 @@ index 0000000..0000000 100644
 +		if (ret >= 0)
 +			ret = -EIO;
 +		dev_err(&nqx_dev->client->dev,
-+			"%s: I2C write failed after %d attempts\\n",
++			"%s: I2C write failed after %d attempts\n",
 +			__func__, MAX_RETRY_COUNT);
  		goto out_free;
  	}
