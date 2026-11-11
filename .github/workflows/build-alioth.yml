@@ -217,7 +217,7 @@ jobs:
         uses: ./.github/workflows/build-ready
 
       - name: 📶 Patch NFC I2C write retry
-        if: ${{ inputs.nfc_i2c_retry }}
+        if: \${{ inputs.nfc_i2c_retry }}
         shell: bash
         run: |
           set -euo pipefail
@@ -231,7 +231,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q '^#define MAX_RETRY_COUNT[[:space:]]\+3
+          if ! grep -Eq '^#define MAX_RETRY_COUNT[[:space:]]+3
         uses: ./.github/workflows/patch-susfs
 
       - name: 🔗 Patch for no-kprobe
