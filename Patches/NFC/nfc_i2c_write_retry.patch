@@ -10,7 +10,7 @@ index 0000000..0000000 100644
  
  	if (!nqx_dev) {
  		ret = -ENODEV;
-@@ -382,12 +383,23 @@ static ssize_t nfc_write(struct file *filp, const char __user *buf,
+@@ -382,11 +383,24 @@ static ssize_t nfc_write(struct file *filp, const char __user *buf,
  	print_send_buffer(nqx_dev, tmp, count);
  #endif
  
