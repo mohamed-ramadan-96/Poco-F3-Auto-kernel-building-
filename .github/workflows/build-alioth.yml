@@ -584,6 +584,7 @@ jobs:
             echo "build_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "device=$DEVICE_CODENAME"
             echo "kernel_version=$KERNEL_VERSION"
+            echo "compiler=${{ inputs.compiler }}"
             echo "kernelsu_variant=${{ inputs.ksu }}"
             echo "susfs=${{ inputs.susfs }}"
             echo "rekernel=${{ inputs.rekernel }}"
@@ -602,6 +603,7 @@ jobs:
           name: alioth-build-metadata
           path: |
             device_kernel/build-info.txt
+            alioth-final.config
             dependency-revisions.txt
             device_kernel/${{ env.PACK_NAME }}.sha256
           if-no-files-found: error
