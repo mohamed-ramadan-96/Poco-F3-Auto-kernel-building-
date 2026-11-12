@@ -516,7 +516,7 @@ runs:
 
           # W1's Neutron toolchain is distributed as tar.zst.
           if [[ "${{ env.CLANG_SOURCE }}" == *'.tar.zst' ]]; then
-            apt-get update
+            sudo apt-get update
             sudo apt-get install -y zstd
           fi
 
