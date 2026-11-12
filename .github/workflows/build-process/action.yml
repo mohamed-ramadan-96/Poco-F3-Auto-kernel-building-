@@ -24,12 +24,6 @@ runs:
 
           echo "[+] Added mkdtboimg into your kernel."
 
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2.22
-        with:
-          key: build-kernel-${{ env.DEVICE_NAME }}${{ env.UPLOADNAME }}
-          max-size: 2G
-
       - name: Build Kernel (W1 alioth build system)
         shell: bash
         run: |
