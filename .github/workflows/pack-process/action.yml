@@ -68,6 +68,7 @@ runs:
           anykernel3_source=$AK3_SOURCE_INPUT
           anykernel3_branch=$AK3_BRANCH_INPUT
           anykernel3_commit=$AK3_SOURCE_SHA
+          compiler=${{ env.COMPILER }}
           clang_source=${{ env.CLANG_SOURCE }}
           kernelsu_setup_source=${{ env.KERNELSU_SOURCE }}
           kernelsu_branch=${{ env.KERNELSU_BRANCH }}
