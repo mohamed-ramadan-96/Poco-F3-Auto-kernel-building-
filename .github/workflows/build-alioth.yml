@@ -285,9 +285,6 @@ jobs:
         env:
           ANYKERNEL_PAT: ${{ secrets.ANYKERNEL_PAT }}
 
-      - name: 🪝 Patch Kernel of SUSFS
-        uses: ./.github/workflows/patch-susfs
-
       - name: 📶 Apply W1 NFC I2C write retry patch
         if: ${{ inputs.nfc_i2c_retry }}
         shell: bash
@@ -361,6 +358,9 @@ jobs:
           if [[ ! -s "$OUT" ]]; then
             echo "No separately cloned Git dependencies detected." | tee "$OUT"
           fi
+
+      - name: 🪝 Patch Kernel of SUSFS
+        uses: ./.github/workflows/patch-susfs
 
       - name: 🔗 Patch for no-kprobe
         uses: ./.github/workflows/patch-no-kprobe
