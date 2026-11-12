@@ -514,6 +514,12 @@ runs:
 
           fi
 
+          # W1's Neutron toolchain is distributed as tar.zst.
+          if [[ "${{ env.CLANG_SOURCE }}" == *'.tar.zst' ]]; then
+            apt-get update
+            apt-get install -y zstd
+          fi
+
           # Set Clang
           if [[ -z "${{ env.CLANG_SOURCE }}" ]]; then
             echo "[-] GCC is not configured, Skipped."
@@ -528,6 +534,12 @@ runs:
                 ${{ env.CURLX }} "${{ env.CLANG_SOURCE }}" clang.tar.gz
                 mkdir clang-custom
                 tar -C clang-custom/ -zxf clang.tar.gz
+
+            elif [[ "${{ env.CLANG_SOURCE }}" == *'.tar.zst' ]]; then
+                ${{ env.CURLX }} "${{ env.CLANG_SOURCE }}" clang.tar.zst
+                unzstd clang.tar.zst
+                mkdir clang-custom
+                tar -C clang-custom/ -xf clang.tar
 
             elif [[ "${{ env.CLANG_SOURCE }}" == *'.tar.xz' ]]; then
                 ${{ env.CURLX }} "${{ env.CLANG_SOURCE }}" clang.tar.xz
