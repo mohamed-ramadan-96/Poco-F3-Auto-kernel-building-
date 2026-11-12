@@ -1151,14 +1151,14 @@ diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
 index 9e17d92..61f6ccb 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -21,6 +21,9 @@
+@@ -21,4 +21,7 @@
  #include <linux/pkeys.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 +#include <linux/susfs_def.h>
 +#endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
-
+ 
  #include <asm/elf.h>
-
+ 
 @@ -348,6 +351,14 @@ static void show_vma_header_prefix(struct seq_file *m,
  	seq_putc(m, ' ');
  }
@@ -1174,8 +1174,8 @@ index 9e17d92..61f6ccb 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
  {
-@@ -362,9 +373,36 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
-
+@@ -362,8 +373,35 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ 
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
 +#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
@@ -1209,7 +1209,7 @@ index 9e17d92..61f6ccb 100644
 +		susfs_sus_kstat_spoof_show_map_vma(inode, &dev, &ino);
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
  		dentry = file->f_path.dentry;
-
+ 
 @@ -844,6 +882,13 @@ static int show_smap(struct seq_file *m, void *v)
  	struct vm_area_struct *vma = v;
  	struct mem_size_stats mss;
@@ -1267,7 +1267,7 @@ index 9e17d92..61f6ccb 100644
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
  		up_read(&mm->mmap_sem);
  		start_vaddr = end;
-
+ 
 diff --git a/fs/proc_namespace.c b/fs/proc_namespace.c
 index bd07f0f..6e819a4 100644
 --- a/fs/proc_namespace.c
@@ -4937,10 +4937,10 @@ index 6ac5d1b..6b7d5ef 100644
  			user = find_user(uid);
  			if (!user)
  				goto out_unlock;	/* No processes for this user */
-@@ -1240,12 +1252,20 @@ static int override_release(char __user *release, size_t len)
+@@ -1240,23 +1252,31 @@ static int override_release(char __user *release, size_t len)
  	return ret;
  }
-
+ 
 +#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 +extern struct static_key_false susfs_is_uname_spoof_buffer_set;
 +extern void susfs_spoof_uname(struct new_utsname* tmp);
@@ -4948,7 +4948,7 @@ index 6ac5d1b..6b7d5ef 100644
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
-
+ 
  	down_read(&uts_sem);
  	memcpy(&tmp, utsname(), sizeof(tmp));
  	if (current_uid().val == 0 &&
@@ -4968,7 +4968,7 @@ index 6ac5d1b..6b7d5ef 100644
  	up_read(&uts_sem);
  	if (copy_to_user(name, &tmp, sizeof(tmp)))
  		return -EFAULT;
-
+ 
 diff --git a/mm/memory.c b/mm/memory.c
 index 3189d79..56c3f9e 100644
 --- a/mm/memory.c
@@ -5051,7 +5051,7 @@ index 74ab889..664cf5c 100644
  	if (rc)
  		audit_log_format(ab, " tsid=%d", tsid);
  	else {
-@@ -194,6 +214,9 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
+@@ -194,7 +214,10 @@ static void avc_dump_query(struct audit_buffer *ab, struct selinux_state *state,
  		kfree(scontext);
  	}
  
@@ -5061,3 +5061,4 @@ index 74ab889..664cf5c 100644
  	BUG_ON(!tclass || tclass >= ARRAY_SIZE(secclass_map));
  	audit_log_format(ab, " tclass=%s", secclass_map[tclass-1].name);
  }
+ 
