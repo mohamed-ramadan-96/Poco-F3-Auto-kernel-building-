@@ -76,6 +76,7 @@ runs:
           build_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           kernelsu_variant=${{ env.KSU_VARIANT }}
           susfs=${{ env.SELECTED_SUSFS }}
+          nfc_i2c_retry=${{ env.SELECTED_NFC_I2C_RETRY }}
           rekernel=${{ env.SELECTED_REKERNEL }}
           nomount=${{ env.SELECTED_NOMOUNT }}
           droidspaces=${{ env.SELECTED_DROIDSPACES }}
