@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] NFC: retry failed NQ-NCI I2C writes
+
+Retry short I2C write failures because the NFCC may transiently return
+an I2C error while waking from standby. Preserve the existing error
+contract after all attempts are exhausted.
+
+---
+ drivers/nfc/nq-nci.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nfc/nq-nci.c b/drivers/nfc/nq-nci.c
+--- a/drivers/nfc/nq-nci.c
++++ b/drivers/nfc/nq-nci.c
+@@ -403,5 +403,6 @@ static ssize_t nfc_write(struct file *filp, const char __user *buf,
+ 	char *tmp = NULL;
+ 	int ret = 0;
++	int retry_cnt;
+ 
+ 	if (!nqx_dev) {
+ 		ret = -ENODEV;
+@@ -426,10 +427,21 @@ static ssize_t nfc_write(struct file *filp, const char __user *buf,
+ 	print_send_buffer(nqx_dev, tmp, count);
+ #endif
+ 
+-	ret = i2c_master_send(nqx_dev->client, tmp, count);
+-	if (ret != count) {
++	for (retry_cnt = 0; retry_cnt < MAX_RETRY_COUNT; retry_cnt++) {
++		ret = i2c_master_send(nqx_dev->client, tmp, count);
++		if (ret == count)
++			break;
++
++		dev_err(&nqx_dev->client->dev,
++			"%s: I2C write failed (attempt %d/%d, ret=%d)\n",
++			__func__, retry_cnt + 1, MAX_RETRY_COUNT, ret);
++		if (retry_cnt + 1 < MAX_RETRY_COUNT)
++			usleep_range(10000, 11000);
++	}
++	if (ret != count) {
+ 		dev_err(&nqx_dev->client->dev,
+-		"%s: failed to write %d\n", __func__, ret);
++		"%s: failed to write after %d attempts\n",
++		__func__, MAX_RETRY_COUNT);
+ 		ret = -EIO;
+ 		goto out_free;
+ 	}
+-- 
+2.45.2
