@@ -75,6 +75,7 @@ runs:
           PACK_METHOD_INPUT: ${{ env.PACK_METHOD }}
           AK3_SOURCE_INPUT: ${{ env.AK3_SOURCE }}
           AK3_BRANCH_INPUT: ${{ env.AK3_BRANCH }}
+          ANYKERNEL_PAT: ${{ env.ANYKERNEL_PAT }}
           DEFCONFIG_FROM_BOOT_INPUT: ${{ env.DEFCONFIG_FROM_BOOT }}
         run: |
           # Set packing method
@@ -93,7 +94,16 @@ runs:
               echo "[+] Get AnyKernel3 successfully!"
 
             else
-              git clone --recursive --depth=1 "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3
+              REPO_URL="$AK3_SOURCE_INPUT"
+              if [[ "$AK3_SOURCE_INPUT" == https://github.com/* && -n "$ANYKERNEL_PAT" ]]; then
+                REPO_PATH="${AK3_SOURCE_INPUT#https://github.com/}"
+                REPO_URL="https://x-access-token:${ANYKERNEL_PAT}@github.com/${REPO_PATH}"
+              fi
+              if [[ "$AK3_SOURCE_INPUT" == *"mohamed-ramadan-96/Darkdreamer-Anykernel3-"* && -z "$ANYKERNEL_PAT" ]]; then
+                echo "::error::ANYKERNEL_PAT secret is required to clone the private Darkdreamer AnyKernel3 repository."
+                exit 1
+              fi
+              git clone --recursive --depth=1 "$REPO_URL" -b "$AK3_BRANCH_INPUT" AnyKernel3
 
             fi
           elif [[ "$PACK_METHOD_INPUT" == "MKBOOTIMG" ]] || [ "$DEFCONFIG_FROM_BOOT_INPUT" == "true" ]; then
