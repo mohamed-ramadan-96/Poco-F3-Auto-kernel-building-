@@ -65,6 +65,10 @@ on:
         description: 'Clean old KSU/hooks from the source first (ignored when KSU patch is OFF)'
         type: boolean
         default: true
+      nfc_i2c_retry:
+        description: 'Apply W1 NFC NQ-NCI I2C write retry patch'
+        type: boolean
+        default: true
       susfs:
         description: 'Patch SUSFS'
         type: boolean
@@ -277,6 +281,29 @@ jobs:
 
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
+      - name: 📶 Apply W1 NFC I2C write retry patch
+        if: ${{ inputs.nfc_i2c_retry }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/device_kernel"
+          PATCH="$GITHUB_WORKSPACE/patches/nfc/0001-nfc-nq-nci-retry-i2c-writes.patch"
+          TARGET="drivers/nfc/nq-nci.c"
+          test -s "$PATCH" || { echo "::error::W1 NFC patch file is missing."; exit 1; }
+          test -s "$TARGET" || { echo "::error::NFC target not found in the selected kernel source: $TARGET"; exit 1; }
+          if grep -Fq 'failed to write after %d attempts' "$TARGET" && grep -Fq 'usleep_range(10000, 11000)' "$TARGET"; then
+            echo "[+] W1 NFC I2C retry implementation is already present; skipping duplicate application."
+          else
+            git apply --check "$PATCH"
+            git apply "$PATCH"
+            git diff --check
+          fi
+          grep -Fq 'for (retry_cnt = 0; retry_cnt < MAX_RETRY_COUNT; retry_cnt++)' "$TARGET"
+          grep -Fq 'usleep_range(10000, 11000)' "$TARGET"
+          grep -Fq 'failed to write after %d attempts' "$TARGET"
+          echo "NFC_I2C_RETRY_APPLIED=true" >> "$GITHUB_ENV"
+          echo "[+] W1 NFC I2C retry patch applied and verified."
+
       - name: 🏷️ Set custom kernel version
         shell: bash
         env:
