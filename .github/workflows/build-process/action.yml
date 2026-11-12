@@ -35,7 +35,24 @@ runs:
             exit 1
           fi
           export PATH="$GITHUB_WORKSPACE/clang-custom/bin:$PATH"
-          clang --version
+
+          # Fail early with actionable diagnostics if the selected toolchain
+          # requires a newer glibc than the runner provides.
+          echo "[+] Runner OS: $(. /etc/os-release && echo "$PRETTY_NAME")"
+          echo "[+] Runner glibc: $(ldd --version | head -n 1)"
+          echo "[+] Checking Neutron Clang shared-library dependencies..."
+          if ! ldd "$GITHUB_WORKSPACE/clang-custom/bin/clang" | tee "$RUNNER_TEMP/clang-ldd.log"; then
+            echo "::error::Unable to inspect the selected Clang binary dependencies."
+            exit 1
+          fi
+          if grep -q "not found" "$RUNNER_TEMP/clang-ldd.log"; then
+            echo "::error::Selected Clang has unresolved shared-library dependencies on this Ubuntu runner."
+            exit 1
+          fi
+          if ! clang --version; then
+            echo "::error::Selected Clang cannot start on this runner. Check the toolchain's GLIBC requirements and Ubuntu runner version."
+            exit 1
+          fi
           command -v aarch64-linux-gnu-gcc >/dev/null || {
             echo "::error::W1 cross compiler aarch64-linux-gnu-gcc is missing."
             exit 1
