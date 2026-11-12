@@ -86,14 +86,14 @@ runs:
               echo "[+] Found AnyKernel3 in Kernel!"
 
             elif [[ "$AK3_SOURCE_INPUT" == *"osm0sis/AnyKernel3.git" ]]; then
-              git clone "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3
+              git clone --recursive "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3
               cd AnyKernel3
               git checkout dca9dc370838d919d56c1f59ec78b27a14a72c68
               cd ../
               echo "[+] Get AnyKernel3 successfully!"
 
             else
-              git clone "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3 --depth=1
+              git clone --recursive --depth=1 "$AK3_SOURCE_INPUT" -b "$AK3_BRANCH_INPUT" AnyKernel3
 
             fi
           elif [[ "$PACK_METHOD_INPUT" == "MKBOOTIMG" ]] || [ "$DEFCONFIG_FROM_BOOT_INPUT" == "true" ]; then
