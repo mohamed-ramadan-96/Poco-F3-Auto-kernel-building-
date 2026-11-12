@@ -120,6 +120,7 @@ env:
   KERNEL_BRANCH: ${{ inputs.kernel_branch_preset == 'Custom Branch' && inputs.kernel_branch || inputs.kernel_branch_preset != 'Custom Branch' && inputs.kernel_branch_preset || '' }}
   KSU_VARIANT: ${{ inputs.ksu }}
   SELECTED_SUSFS: ${{ inputs.susfs }}
+  SELECTED_NFC_I2C_RETRY: ${{ inputs.nfc_i2c_retry }}
   COMPILER: ${{ inputs.compiler }}
   SELECTED_REKERNEL: ${{ inputs.rekernel }}
   SELECTED_NOMOUNT: ${{ inputs.nomount }}
