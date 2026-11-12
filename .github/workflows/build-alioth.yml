@@ -11,8 +11,8 @@ on:
       kernel_tree_preset:
         description: 'Kernel Tree'
         type: choice
-        options: ['Default Kernel Tree', 're-noroi/kernel_sm8250', 'Custom URL']
-        default: 'Default Kernel Tree'
+        options: ['re-noroi/kernel_sm8250', 'mohamed-ramadan-96/kernel_sm8250', 'Custom URL']
+        default: 're-noroi/kernel_sm8250'
       kernel_source:
         description: 'Custom Kernel Tree URL (leave empty to use preset)'
         type: string
@@ -112,7 +112,7 @@ env:
   CUSTOM_CMDS: "LLVM=1 LLVM_IAS=1"
   EXTRA_CMDS: ""
 
-  KERNEL_SOURCE: ${{ inputs.kernel_tree_preset == 'Custom URL' && inputs.kernel_source || inputs.kernel_tree_preset == 'Default Kernel Tree' && 'https://github.com/mohamed-ramadan-96/kernel_sm8250.git' || inputs.kernel_tree_preset == 're-noroi/kernel_sm8250' && 'https://github.com/re-noroi/kernel_sm8250' || '' }}
+  KERNEL_SOURCE: ${{ inputs.kernel_tree_preset == 'Custom URL' && inputs.kernel_source || inputs.kernel_tree_preset == 're-noroi/kernel_sm8250' && 'https://github.com/re-noroi/kernel_sm8250' || inputs.kernel_tree_preset == 'mohamed-ramadan-96/kernel_sm8250' && 'https://github.com/mohamed-ramadan-96/kernel_sm8250.git' || '' }}
   KERNEL_BRANCH: ${{ inputs.kernel_branch_preset == 'Custom Branch' && inputs.kernel_branch || inputs.kernel_branch_preset != 'Custom Branch' && inputs.kernel_branch_preset || '' }}
   KSU_VARIANT: ${{ inputs.ksu }}
   SELECTED_SUSFS: ${{ inputs.susfs }}
