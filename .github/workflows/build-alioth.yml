@@ -27,13 +27,18 @@ on:
         type: string
         default: ''
       ak3_source:
-        description: 'AnyKernel3 URL'
+        description: 'W1 Darkdreamer AnyKernel3 URL (override only if needed)'
         type: string
-        default: 'https://github.com/re-noroi/anykernel3-test'
+        default: 'https://github.com/mohamed-ramadan-96/Darkdreamer-Anykernel3-'
       ak3_branch:
         description: 'AnyKernel3 Branch'
         type: string
         default: 'main'
+      compiler:
+        description: 'W1 alioth Clang toolchain'
+        type: choice
+        options: ['neutron', 'r547379', 'r574158', 'r614150']
+        default: 'neutron'
       zip_name:
         description: 'Zip name without .zip'
         type: string
@@ -120,7 +125,7 @@ env:
   SELECTED_RW_SWAPPINESS: ${{ inputs.rw_swappiness }}
   SELECTED_BATTERY_PROFILE: ${{ inputs.battery }}
 
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
+  CLANG_SOURCE: ${{ inputs.compiler == 'r547379' && 'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz' || inputs.compiler == 'r574158' && 'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/ebcc6c3bef363bc539ea39f45b6abae1dce6ff1a/clang-r574158.tar.gz' || inputs.compiler == 'r614150' && 'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/16fae8ef5b856b1d3e02a55274e4327c5842bb34/clang-r614150.tar.gz' || 'https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/06092026/neutron-clang-06092026.tar.zst' }}
   CLANG_BRANCH: ""
 
   GCC_GNU: true
