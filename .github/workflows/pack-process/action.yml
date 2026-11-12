@@ -12,6 +12,7 @@ runs:
           AK3_BRANCH_INPUT: ${{ env.AK3_BRANCH }}
           BATTERY_PROFILE: ${{ env.SELECTED_BATTERY_PROFILE }}
         run: |
+          set -euo pipefail
           TIME=$(date +"%Y%m%d%H%M%S")
 
           cd $GITHUB_WORKSPACE/device_kernel/
@@ -34,49 +35,14 @@ runs:
             echo "Now using custom AnyKernel3."
           fi
 
-          if [[ -f "$IMAGE_DIR/Image.gz-dtb" ]]; then
-            cp -fp "$IMAGE_DIR/Image.gz-dtb" tmp
-            echo "Found Image.gz-dtb !"
-          elif [[ -f "$IMAGE_DIR/Image-dtb" ]]; then
-            cp -fp "$IMAGE_DIR/Image-dtb" tmp
-            echo "Found Image-dtb !"
-          elif [[ -f "$IMAGE_DIR/Image.gz" ]]; then
-            cp -fp "$IMAGE_DIR/Image.gz" tmp
-            echo "Found Image.gz !"
-          elif [[ -f "$IMAGE_DIR/Image" ]]; then
-            cp -fp "$IMAGE_DIR/Image" tmp
-            echo "Found Image !"
-          fi
-
-          if [[ -f "$IMAGE_DIR/dtbo.img" ]]; then
-            cp -fp "$IMAGE_DIR/dtbo.img" tmp
-            echo "Found dtbo.img !"
-          else
-            echo "[-] Could not found dtbo.img! Your device maybe needn't the file."
-          fi
-
-          if [[ -f "$IMAGE_DIR/dtb.img" ]]; then
-            cp -fp "$IMAGE_DIR/dtb.img" tmp/dtb
-            echo "Found dtb.img, converted dtb !"
-          elif [[ -f "$IMAGE_DIR/dtb" ]]; then
-            echo "Found DTB!"
-            cp -fp "$IMAGE_DIR/dtb" tmp
-          elif [[ "${{ env.GENERATE_DTB }}" == "true" ]]; then
-            if ls "$IMAGE_DIR/dts/${{ env.GENERATE_CHIP }}"/*.dtb 1> /dev/null 2>&1; then
-              DTB_PATH="dts"
-            elif ls "$IMAGE_DIR/dts/vendor/${{ env.GENERATE_CHIP }}"/*.dtb 1> /dev/null 2>&1; then
-              DTB_PATH="dts/vendor"
-            else
-              echo "[-] Could not found dts, abort."
-              false
-            fi
-
-            cat "$IMAGE_DIR/$DTB_PATH/${{ env.GENERATE_CHIP }}"/*.dtb > "$IMAGE_DIR/dtb"
-            cp -fp "$IMAGE_DIR/dtb" tmp
-            echo "Generated ${{ env.GENERATE_CHIP }} DTB."
-          else
-            echo "[-] Could not found dtb or dtb.img! Your device maybe needn't the file."
-          fi
+          # W1 Darkdreamer AnyKernel3 requires these exact root-level filenames.
+          test -s "$IMAGE_DIR/Image.gz"
+          test -s "$IMAGE_DIR/dtbo.img"
+          test -s "$IMAGE_DIR/dtb.img"
+          cp -fp "$IMAGE_DIR/Image.gz" tmp/Image.gz
+          cp -fp "$IMAGE_DIR/dtbo.img" tmp/dtbo.img
+          cp -fp "$IMAGE_DIR/dtb.img" tmp/dtb
+          echo "[+] Staged W1-compatible Image.gz, dtbo.img and dtb."
 
           # Added kernel modules to AnyKernel3
           if [[ "${{ env.PACK_KMODULES }}" == "true" ]]; then
