@@ -7,7 +7,7 @@ on:
         description: 'Ubuntu runner version'
         type: choice
         options: ['22.04', '24.04', '26.04']
-        default: '22.04'
+        default: '24.04'
       kernel_tree_preset:
         description: 'Kernel Tree'
         type: choice
