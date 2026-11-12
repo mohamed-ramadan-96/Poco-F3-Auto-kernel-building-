@@ -282,6 +282,8 @@ jobs:
 
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
+        env:
+          ANYKERNEL_PAT: ${{ secrets.ANYKERNEL_PAT }}
       - name: 📶 Apply W1 NFC I2C write retry patch
         if: ${{ inputs.nfc_i2c_retry }}
         shell: bash
